@@ -107,9 +107,11 @@ export default function OrgEmpresas() {
         {editando !== null && (
           <FormEmpresaBasica
             inicial={editando === 'nueva' ? vacia : editando}
-            onGuardar={async (datos) => {
-              if (editando === 'nueva') await empresasApi.crear(datos);
-              else await empresasApi.actualizar(editando.id, datos);
+            nueva={editando === 'nueva'}
+            onGuardar={async (datos, password) => {
+              const conPassword = password ? { ...datos, password } : datos;
+              if (editando === 'nueva') await empresasApi.crear(conPassword);
+              else await empresasApi.actualizar(editando.id, conPassword);
               setEditando(null);
               recargar();
             }}
@@ -124,8 +126,17 @@ export default function OrgEmpresas() {
   );
 }
 
-function FormEmpresaBasica({ inicial, onGuardar }: { inicial: NuevaEmpresa; onGuardar: (d: NuevaEmpresa) => Promise<void> }) {
+function FormEmpresaBasica({
+  inicial,
+  nueva,
+  onGuardar,
+}: {
+  inicial: NuevaEmpresa;
+  nueva: boolean;
+  onGuardar: (d: NuevaEmpresa, password: string) => Promise<void>;
+}) {
   const [f, setF] = useState<NuevaEmpresa>(inicial);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof NuevaEmpresa) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -133,8 +144,9 @@ function FormEmpresaBasica({ inicial, onGuardar }: { inicial: NuevaEmpresa; onGu
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setEnviando(true);
+    setError(null);
     try {
-      await onGuardar(f);
+      await onGuardar(f, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar');
       setEnviando(false);
@@ -159,8 +171,20 @@ function FormEmpresaBasica({ inicial, onGuardar }: { inicial: NuevaEmpresa; onGu
         <Field label="Teléfono">
           <input className="input" type="tel" value={f.telefono} onChange={set('telefono')} required />
         </Field>
-        <Field label="Correo">
+        <Field label="Correo" hint="La empresa entra a su panel con este correo.">
           <input className="input" type="email" value={f.email} onChange={set('email')} required />
+        </Field>
+        <Field label="Contraseña de acceso" hint={nueva ? 'Mínimo 6 caracteres. Entrégala a la empresa.' : 'Déjala vacía para no cambiarla.'}>
+          <input
+            className="input"
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={6}
+            maxLength={72}
+            required={nueva}
+            autoComplete="new-password"
+          />
         </Field>
         <Field label="Sitio web" hint="Opcional">
           <input className="input" type="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} placeholder="https://" />

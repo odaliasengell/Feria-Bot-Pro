@@ -1,190 +1,157 @@
 /**
- * Capa de datos del frontend.
+ * Capa de datos del frontend: llama al backend FastAPI en `VITE_API_URL`.
  *
- * Por ahora guarda todo en localStorage (modo demo) para poder trabajar sin backend.
- * Cuando el backend esté listo, reemplazar el cuerpo de cada función por un `fetch`
- * a `import.meta.env.VITE_API_URL` manteniendo las mismas firmas: las páginas no
- * necesitan cambiar.
+ * Si `VITE_API_URL` está vacío se usa el mismo host desde el que se abrió la app, puerto 8000.
+ * El token de sesión se envía como `Authorization: Bearer <token>`.
  */
 import type {
+  AuthRespuesta,
   Calificacion,
   Empresa,
   Lead,
   LeadDetalle,
   NuevaEmpresa,
   NuevoVisitante,
+  Session,
   Visitante,
   VistaDetalle,
+  VistaFicha,
 } from '../types';
-import { generarCodigo, uid } from '../lib/utils';
-import { crearSeed, type DB } from './seed';
 
-const DB_KEY = 'feriabot.db.v1';
+const API_URL = (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`).replace(/\/$/, '');
 
-function cargar(): DB {
-  try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw) as DB;
-  } catch {
-    /* datos corruptos: se regeneran */
-  }
-  const db = crearSeed();
-  guardar(db);
-  return db;
+let token: string | null = null;
+let alExpirar: (() => void) | null = null;
+
+export function setToken(t: string | null): void {
+  token = t;
 }
 
-function guardar(db: DB): void {
-  try {
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-  } catch {
-    throw new Error('No hay espacio para guardar. Prueba con imágenes más livianas.');
-  }
-}
-
-const esperar = (ms = 150) => new Promise((r) => setTimeout(r, ms));
-
-async function leer<T>(fn: (db: DB) => T): Promise<T> {
-  await esperar();
-  return structuredClone(fn(cargar()));
-}
-
-async function escribir<T>(fn: (db: DB) => T): Promise<T> {
-  await esperar();
-  const db = cargar();
-  const r = fn(db);
-  guardar(db);
-  return structuredClone(r);
-}
-
-function noEncontrado(que: string): never {
-  throw new Error(`${que} no encontrado`);
-}
-
-function detallarLead(db: DB, lead: Lead): LeadDetalle {
-  return {
-    ...lead,
-    visitante: db.visitantes.find((v) => v.id === lead.visitanteId),
-    empresa: db.empresas.find((e) => e.id === lead.empresaId),
+/** Se llama cuando el backend rechaza el token (vencido o inválido). */
+export function alExpirarSesion(fn: () => void): () => void {
+  alExpirar = fn;
+  return () => {
+    if (alExpirar === fn) alExpirar = null;
   };
 }
 
-const masReciente = (a: { creadoEn: string }, b: { creadoEn: string }) => b.creadoEn.localeCompare(a.creadoEn);
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
+type Query = Record<string, string | undefined>;
+
+async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown, query?: Query): Promise<T> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query ?? {})) if (v) params.set(k, v);
+  const qs = params.toString();
+  const url = API_URL + ruta + (qs ? `?${qs}` : '');
+
+  const headers: Record<string, string> = {};
+  if (cuerpo !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { method: metodo, headers, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+  } catch {
+    throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0);
+  }
+
+  if (res.status === 204) return undefined as T;
+  const datos = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401 && token) alExpirar?.();
+    const detalle = datos?.detail;
+    throw new ApiError(typeof detalle === 'string' ? detalle : `Error ${res.status}`, res.status);
+  }
+  return datos as T;
+}
+
+/** Para los `obtener`/`buscar`: un 404 se devuelve como `null`, igual que antes. */
+async function oNull<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 
+export const authApi = {
+  organizador: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/organizador', { email, password }),
+  empresa: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/empresa', { email, password }),
+  /** Ingreso con el código de la tarjeta o el contenido del QR. */
+  visitante: (codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante', { codigo }),
+  /** Envía un código de 6 dígitos al correo, para registrarse o para ingresar. */
+  enviarCodigo: (email: string, proposito: 'registro' | 'ingreso') =>
+    pedir<{ email: string; minutos: number }>('POST', '/auth/enviar-codigo', { email, proposito }),
+  /** Ingreso del visitante con su correo y el código recibido. */
+  visitanteCorreo: (email: string, codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante/correo', { email, codigo }),
+  /** Olvidé mi contraseña: envía un código al correo (responde igual aunque la cuenta no exista). */
+  recuperarEnviarCodigo: (email: string, role: 'empresa' | 'organizador') =>
+    pedir<{ email: string; minutos: number }>('POST', '/auth/recuperar/enviar-codigo', { email, role }),
+  /** Cambia la contraseña con el código recibido y devuelve la sesión iniciada. */
+  recuperarCambiar: (email: string, role: 'empresa' | 'organizador', codigo: string, password: string) =>
+    pedir<AuthRespuesta>('POST', '/auth/recuperar/cambiar', { email, role, codigo, password }),
+  yo: () => pedir<Session>('GET', '/auth/me'),
+};
+
+/** `password` asigna o cambia la contraseña con la que la empresa entra a su panel. */
+type ConPassword<T> = T & { password?: string };
+
 export const empresasApi = {
-  listar: () => leer((db) => [...db.empresas].sort((a, b) => a.nombre.localeCompare(b.nombre))),
+  listar: () => pedir<Empresa[]>('GET', '/empresas'),
 
-  obtener: (id: string) => leer((db) => db.empresas.find((e) => e.id === id) ?? null),
+  obtener: (id: string) => oNull(pedir<Empresa>('GET', `/empresas/${encodeURIComponent(id)}`)),
 
-  crear: (data: NuevaEmpresa) =>
-    escribir((db) => {
-      const empresa: Empresa = { ...data, id: uid('emp-'), creadoEn: new Date().toISOString() };
-      db.empresas.push(empresa);
-      return empresa;
-    }),
+  crear: (data: ConPassword<NuevaEmpresa>) => pedir<Empresa>('POST', '/empresas', data),
 
-  actualizar: (id: string, cambios: Partial<NuevaEmpresa>) =>
-    escribir((db) => {
-      const e = db.empresas.find((x) => x.id === id) ?? noEncontrado('Empresa');
-      Object.assign(e, cambios);
-      return e;
-    }),
+  actualizar: (id: string, cambios: ConPassword<Partial<NuevaEmpresa>>) =>
+    pedir<Empresa>('PATCH', `/empresas/${encodeURIComponent(id)}`, cambios),
 
-  eliminar: (id: string) =>
-    escribir((db) => {
-      db.empresas = db.empresas.filter((e) => e.id !== id);
-      db.leads = db.leads.filter((l) => l.empresaId !== id);
-      db.vistas = db.vistas.filter((v) => v.empresaId !== id);
-    }),
+  eliminar: (id: string) => pedir<void>('DELETE', `/empresas/${encodeURIComponent(id)}`),
 };
 
 export const visitantesApi = {
-  listar: () => leer((db) => [...db.visitantes].sort(masReciente)),
+  listar: () => pedir<Visitante[]>('GET', '/visitantes'),
 
-  obtener: (id: string) => leer((db) => db.visitantes.find((v) => v.id === id) ?? null),
+  obtener: (id: string) => oNull(pedir<Visitante>('GET', `/visitantes/${encodeURIComponent(id)}`)),
 
   /** Busca por código de tarjeta o por correo. */
-  buscar: (codigoOEmail: string) =>
-    leer((db) => {
-      const q = codigoOEmail.trim().toLowerCase();
-      return db.visitantes.find((v) => v.codigo.toLowerCase() === q || v.email.toLowerCase() === q) ?? null;
-    }),
+  buscar: (codigoOEmail: string) => oNull(pedir<Visitante>('GET', '/visitantes/buscar', undefined, { q: codigoOEmail.trim() })),
 
-  crear: (data: NuevoVisitante) =>
-    escribir((db) => {
-      const email = data.email.trim().toLowerCase();
-      if (email && db.visitantes.some((v) => v.email.toLowerCase() === email)) {
-        throw new Error('Ya existe un visitante registrado con ese correo.');
-      }
-      let codigo = generarCodigo();
-      while (db.visitantes.some((v) => v.codigo === codigo)) codigo = generarCodigo();
-      const visitante: Visitante = { ...data, email, id: uid('vis-'), codigo, creadoEn: new Date().toISOString() };
-      db.visitantes.push(visitante);
-      return visitante;
-    }),
+  /** En el registro público con correo hace falta el código enviado con `authApi.enviarCodigo`. */
+  crear: (data: NuevoVisitante, codigoVerificacion?: string) => pedir<Visitante>('POST', '/visitantes', { ...data, codigoVerificacion }),
 
-  eliminar: (id: string) =>
-    escribir((db) => {
-      db.visitantes = db.visitantes.filter((v) => v.id !== id);
-      db.leads = db.leads.filter((l) => l.visitanteId !== id);
-      db.vistas = db.vistas.filter((v) => v.visitanteId !== id);
-    }),
+  eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };
 
 export const leadsApi = {
-  listar: (filtro: { empresaId?: string; visitanteId?: string } = {}) =>
-    leer((db) =>
-      db.leads
-        .filter((l) => (!filtro.empresaId || l.empresaId === filtro.empresaId) && (!filtro.visitanteId || l.visitanteId === filtro.visitanteId))
-        .sort((a, b) => b.actualizadoEn.localeCompare(a.actualizadoEn))
-        .map((l) => detallarLead(db, l)),
-    ),
+  listar: (filtro: { empresaId?: string; visitanteId?: string } = {}) => pedir<LeadDetalle[]>('GET', '/leads', undefined, filtro),
 
   obtener: (empresaId: string, visitanteId: string) =>
-    leer((db) => db.leads.find((l) => l.empresaId === empresaId && l.visitanteId === visitanteId) ?? null),
+    oNull(pedir<Lead>('GET', `/leads/${encodeURIComponent(empresaId)}/${encodeURIComponent(visitanteId)}`)),
 
   /** Una empresa guarda (o actualiza) la calificación de un visitante escaneado. */
   guardar: (empresaId: string, visitanteId: string, calificacion: Calificacion, nota: string) =>
-    escribir((db) => {
-      const ahora = new Date().toISOString();
-      let lead = db.leads.find((l) => l.empresaId === empresaId && l.visitanteId === visitanteId);
-      if (lead) {
-        Object.assign(lead, { calificacion, nota, actualizadoEn: ahora });
-      } else {
-        lead = { id: uid('lead-'), empresaId, visitanteId, calificacion, nota, creadoEn: ahora, actualizadoEn: ahora };
-        db.leads.push(lead);
-      }
-      return detallarLead(db, lead);
-    }),
+    pedir<LeadDetalle>('PUT', '/leads', { empresaId, visitanteId, calificacion, nota }),
 };
 
 export const vistasApi = {
   /** El visitante abrió la ficha de una empresa escaneando el QR del stand. */
-  registrar: (visitanteId: string, empresaId: string) =>
-    escribir((db) => {
-      const ahora = new Date().toISOString();
-      const existente = db.vistas.find((v) => v.visitanteId === visitanteId && v.empresaId === empresaId);
-      if (existente) existente.creadoEn = ahora;
-      else db.vistas.push({ id: uid('vf-'), visitanteId, empresaId, creadoEn: ahora });
-    }),
+  registrar: (visitanteId: string, empresaId: string) => pedir<VistaFicha>('POST', '/vistas', { visitanteId, empresaId }),
 
-  listar: (filtro: { visitanteId?: string; empresaId?: string } = {}) =>
-    leer((db): VistaDetalle[] =>
-      db.vistas
-        .filter((v) => (!filtro.visitanteId || v.visitanteId === filtro.visitanteId) && (!filtro.empresaId || v.empresaId === filtro.empresaId))
-        .sort(masReciente)
-        .map((v) => ({
-          ...v,
-          empresa: db.empresas.find((e) => e.id === v.empresaId),
-          visitante: db.visitantes.find((x) => x.id === v.visitanteId),
-        })),
-    ),
+  listar: (filtro: { visitanteId?: string; empresaId?: string } = {}) => pedir<VistaDetalle[]>('GET', '/vistas', undefined, filtro),
 };
 
 export const demoApi = {
-  reiniciar: () =>
-    escribir((db) => {
-      Object.assign(db, crearSeed());
-    }),
+  reiniciar: () => pedir<void>('POST', '/demo/reiniciar'),
 };

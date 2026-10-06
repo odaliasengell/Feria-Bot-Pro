@@ -1,0 +1,6 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+vista_previa_correo.html

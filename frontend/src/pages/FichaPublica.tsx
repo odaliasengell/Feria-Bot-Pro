@@ -17,7 +17,12 @@ export default function FichaPublica() {
 
   useEffect(() => {
     if (empresa && session?.role === 'visitante' && session.refId) {
-      vistasApi.registrar(session.refId, empresa.id).then(() => setRegistrada(true));
+      vistasApi
+        .registrar(session.refId, empresa.id)
+        .then(() => setRegistrada(true))
+        .catch(() => {
+          /* la ficha se muestra igual aunque no se guarde en el historial */
+        });
     }
   }, [empresa, session]);
 
