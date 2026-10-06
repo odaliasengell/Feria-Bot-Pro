@@ -64,5 +64,10 @@ export interface Session {
   nombre: string;
 }
 
-export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
+export interface AuthRespuesta {
+  token: string;
+  session: Session;
+}
+
+export type NuevaEmpresa =Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;

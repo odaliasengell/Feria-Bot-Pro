@@ -6,6 +6,7 @@ import AppLayout from './components/AppLayout';
 import Landing from './pages/Landing';
 import Ingresar from './pages/Ingresar';
 import RegistroVisitante from './pages/RegistroVisitante';
+import RecuperarPassword from './pages/RecuperarPassword';
 import FichaPublica from './pages/FichaPublica';
 import OrgResumen from './pages/organizador/OrgResumen';
 import OrgEmpresas from './pages/organizador/OrgEmpresas';
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/ingresar" element={<Ingresar />} />
       <Route path="/registro" element={<RegistroVisitante />} />
+      <Route path="/recuperar" element={<RecuperarPassword />} />
       <Route path="/ficha/:id" element={<FichaPublica />} />
 
       <Route path="/organizador" element={<RequireRole role="organizador"><AppLayout role="organizador" /></RequireRole>}>

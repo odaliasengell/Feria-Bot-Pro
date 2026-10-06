@@ -32,15 +32,21 @@ export default function EmpresaEscanear() {
       return;
     }
     setEstado({ paso: 'buscando' });
-    const v = await visitantesApi.buscar(codigo);
-    if (!v) {
-      setEstado({ paso: 'no-encontrado', texto: codigo });
-      return;
+    setError(null);
+    try {
+      const v = await visitantesApi.buscar(codigo);
+      if (!v) {
+        setEstado({ paso: 'no-encontrado', texto: codigo });
+        return;
+      }
+      const previo = await leadsApi.obtener(empresaId, v.id);
+      setCal(previo?.calificacion ?? 'interesado');
+      setNota(previo?.nota ?? '');
+      setEstado({ paso: 'calificar', visitante: v, previo: previo?.actualizadoEn });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo buscar el visitante');
+      setEstado({ paso: 'escaneando' });
     }
-    const previo = await leadsApi.obtener(empresaId, v.id);
-    setCal(previo?.calificacion ?? 'interesado');
-    setNota(previo?.nota ?? '');
-    setEstado({ paso: 'calificar', visitante: v, previo: previo?.actualizadoEn });
   }
 
   function enviarManual(e: FormEvent) {
@@ -85,6 +91,7 @@ export default function EmpresaEscanear() {
         </div>
 
         <div className="scan-col">
+          {estado.paso === 'escaneando' && error && <Alert>{error}</Alert>}
           {estado.paso === 'escaneando' && (
             <div className="scan-hint card">
               <h3>¿Cómo funciona?</h3>

@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  Correo con el código de verificación.
+  Variables: $$codigo, $$minutos, $$app, $$titulo, $$mensaje (textos en TEXTOS_CODIGO de correo.py)
+  Los clientes de correo ignoran <style> y CSS moderno: todo va en style="" y el diseño con tablas.
+  Vista previa sin enviar nada:  .\.venv\Scripts\python -m app.correo
+-->
+
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>$titulo · $app</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8f9fc;">
+  <!-- Texto de vista previa que muestra la bandeja de entrada (no se ve dentro del correo) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    Tu código es $codigo. Vence en $minutos minutos.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f9fc;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+
+          <!-- Encabezado -->
+          <tr>
+            <td style="background-color:#0a0e1c;padding:22px 32px;">
+              <span style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.2px;">
+                FeriaBot <span style="color:#70ffaf;">Pro</span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="height:4px;line-height:4px;font-size:0;background-color:#70ffaf;">&nbsp;</td>
+          </tr>
+
+          <!-- Contenido -->
+          <tr>
+            <td style="padding:32px 32px 8px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#25272b;">
+              <h1 style="margin:0 0 8px;font-size:22px;line-height:1.3;color:#0a0e1c;">$titulo</h1>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#475269;">
+                $mensaje
+              </p>
+            </td>
+          </tr>
+
+          <!-- Código -->
+          <tr>
+            <td align="center" style="padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#e2fff0;border:1px solid #70ffaf;border-radius:10px;padding:16px 28px;">
+                    <span style="font-family:'JetBrains Mono',Consolas,'Courier New',monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#116329;">$codigo</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 32px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+              <p style="margin:0 0 6px;font-size:14px;line-height:1.6;color:#475269;">
+                El código vence en <strong style="color:#0a0e1c;">$minutos minutos</strong> y solo se puede usar una vez.
+              </p>
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#868789;">
+                Si no lo pediste, puedes ignorar este correo. Nadie podrá entrar sin el código.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Pie -->
+          <tr>
+            <td style="border-top:1px solid #e5e7eb;padding:18px 32px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#9ea0a5;">
+              $app · Este es un correo automático, no respondas a este mensaje.
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

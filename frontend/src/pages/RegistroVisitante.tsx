@@ -2,26 +2,39 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { visitantesApi } from '../services/api';
+import { authApi, visitantesApi } from '../services/api';
 import { Alert } from '../components/ui';
+import CodigoCorreo from '../components/CodigoCorreo';
 import FormVisitante, { visitanteVacio } from './organizador/FormVisitante';
 
 /** Registro que el propio visitante hace al ingresar a la feria. */
 export default function RegistroVisitante() {
   const [form, setForm] = useState(visitanteVacio);
+  const [paso, setPaso] = useState<'datos' | 'codigo'>('datos');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const email = form.email.trim().toLowerCase();
 
+  async function registrar(codigoVerificacion?: string) {
+    const v = await visitantesApi.crear(form, codigoVerificacion);
+    login(await authApi.visitante(v.codigo));
+    navigate('/visitante?nuevo=1');
+  }
+
+  /** Con correo, primero se envía el código y el registro se completa al verificarlo. */
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setEnviando(true);
     setError(null);
     try {
-      const v = await visitantesApi.crear(form);
-      login({ role: 'visitante', refId: v.id, nombre: v.nombre });
-      navigate('/visitante?nuevo=1');
+      if (email) {
+        await authApi.enviarCodigo(email, 'registro');
+        setPaso('codigo');
+      } else {
+        await registrar();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar');
     } finally {
@@ -52,18 +65,38 @@ export default function RegistroVisitante() {
         <h1>
           <Sparkles size={26} className="text-teal" /> Registro de visitante
         </h1>
-        <p className="muted">Completa tus datos para recibir tu tarjeta con QR personal.</p>
+        {paso === 'datos' ? (
+          <>
+            <p className="muted">Completa tus datos para recibir tu tarjeta con QR personal.</p>
 
-        <form className="auth-form" onSubmit={enviar}>
-          <FormVisitante value={form} onChange={setForm} />
-          {error && <Alert tone="orange">{error}</Alert>}
-          <button className="btn btn-teal btn-lg btn-block" disabled={enviando}>
-            {enviando ? 'Generando tarjeta…' : 'Obtener mi tarjeta QR'} <ArrowRight size={18} />
-          </button>
-          <p className="muted small center">
-            ¿Ya tienes tarjeta? <Link to="/ingresar?rol=visitante">Ingresa con tu código</Link>
-          </p>
-        </form>
+            <form className="auth-form" onSubmit={enviar}>
+              <FormVisitante value={form} onChange={setForm} />
+              {error && <Alert tone="orange">{error}</Alert>}
+              <button className="btn btn-teal btn-lg btn-block" disabled={enviando}>
+                {enviando ? 'Enviando código…' : 'Continuar'} <ArrowRight size={18} />
+              </button>
+              <p className="muted small center">
+                ¿Ya tienes tarjeta? <Link to="/ingresar?rol=visitante">Ingresa con tu código</Link>
+              </p>
+            </form>
+          </>
+        ) : (
+          <>
+            <p className="muted">Confirma tu correo para recibir tu tarjeta.</p>
+            <CodigoCorreo
+              email={email}
+              textoBoton="Obtener mi tarjeta QR"
+              onVerificar={registrar}
+              onReenviar={async () => {
+                await authApi.enviarCodigo(email, 'registro');
+              }}
+              onCambiarCorreo={() => {
+                setError(null);
+                setPaso('datos');
+              }}
+            />
+          </>
+        )}
       </div>
     </div>
   );

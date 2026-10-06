@@ -26,26 +26,24 @@ npm run build
 
 La cámara del navegador solo funciona en `localhost` o con HTTPS.
 
-## Conectar el backend
+## Backend
 
-Todo el acceso a datos está en [`src/services/api.ts`](src/services/api.ts). Hoy guarda en
-`localStorage` con datos de demostración ([`seed.ts`](src/services/seed.ts)). Para conectar el backend:
+Los datos vienen del backend FastAPI de [`../backend`](../backend) (ver su README para levantarlo).
+Todo el acceso está en [`src/services/api.ts`](src/services/api.ts) y la URL se configura en `.env`:
 
-1. Copiar `.env.example` a `.env` y poner `VITE_API_URL`.
-2. Reemplazar el cuerpo de cada función de `api.ts` por un `fetch` manteniendo las mismas firmas.
-   Los tipos que espera el frontend están en [`src/types.ts`](src/types.ts).
+```bash
+VITE_API_URL=http://localhost:8000
+```
 
-Endpoints sugeridos:
+Si se deja vacío se usa el mismo host desde el que se abrió la app, en el puerto 8000. Si abres el
+frontend desde otra dirección (por ejemplo la IP de tu red local), agrégala a `CORS_ORIGINS` del backend.
 
-| Función | Método y ruta |
-| --- | --- |
-| `empresasApi.listar / obtener / crear / actualizar / eliminar` | `GET/POST /empresas`, `GET/PATCH/DELETE /empresas/:id` |
-| `visitantesApi.listar / obtener / crear / eliminar` | `GET/POST /visitantes`, `GET/DELETE /visitantes/:id` |
-| `visitantesApi.buscar(codigoOEmail)` | `GET /visitantes/buscar?q=` |
-| `leadsApi.listar({ empresaId?, visitanteId? })` | `GET /leads?empresaId=&visitanteId=` (con `visitante` y `empresa` embebidos) |
-| `leadsApi.obtener(empresaId, visitanteId)` | `GET /leads/:empresaId/:visitanteId` |
-| `leadsApi.guardar(...)` | `PUT /leads` (crea o actualiza; un lead por empresa + visitante) |
-| `vistasApi.registrar / listar` | `POST /vistas`, `GET /vistas?visitanteId=&empresaId=` |
+## Inicio de sesión
 
-El inicio de sesión ([`src/pages/Ingresar.tsx`](src/pages/Ingresar.tsx)) es de demostración: falta autenticación
-real (usuario/contraseña para organizador y empresas).
+- **Organizador**: correo y contraseña (`ADMIN_EMAIL` / `ADMIN_PASSWORD` del backend).
+- **Empresa**: su correo y la contraseña que le asigna el organizador en *Empresas → Editar*.
+- **Visitante**: el código de su tarjeta o el contenido del QR. Si escribe su correo, recibe un código
+  de 6 dígitos para entrar. Al registrarse también confirma su correo con un código.
+
+El token se guarda en `localStorage` y, si vence, la app vuelve a la pantalla de ingreso.
+Datos de demo: `admin@feriabot.com` / `admin123`, empresas con su correo y `empresa123`, visitante `FB-7K3PQX`.
