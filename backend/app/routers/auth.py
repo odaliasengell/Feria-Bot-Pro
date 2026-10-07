@@ -71,7 +71,7 @@ def enviar_codigo(data: EnviarCodigo, db: DB):
     email = data.email.lower()
     existe = db.scalar(select(Visitante.id).where(Visitante.email == email)) is not None
     if data.proposito == "registro" and existe:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un visitante registrado con ese correo. Ingresa con tu correo.")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya tienes una cuenta con ese correo. Ingresa con tu correo para inscribirte a esta feria.")
     if data.proposito == "ingreso" and not existe:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay un visitante registrado con ese correo. ¿Ya te registraste?")
     crear_y_enviar(db, email, data.proposito)

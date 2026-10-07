@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Building2,
+  CalendarDays,
   ContactRound,
   IdCard,
   LayoutDashboard,
@@ -14,10 +15,12 @@ import {
 import type { Role } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from './ui';
+import { FeriaSelector } from './FeriaSelector';
 
 const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boolean }[]> = {
   organizador: [
     { to: '/organizador', label: 'Resumen', icon: LayoutDashboard, end: true },
+    { to: '/organizador/ferias', label: 'Ferias', icon: CalendarDays },
     { to: '/organizador/empresas', label: 'Empresas', icon: Building2 },
     { to: '/organizador/visitantes', label: 'Visitantes', icon: Users },
     { to: '/organizador/leads', label: 'Leads', icon: BarChart3 },
@@ -90,6 +93,7 @@ export default function AppLayout({ role }: { role: Role }) {
       </header>
 
       <main className="main">
+        {role === 'organizador' && <FeriaSelector />}
         <Outlet />
       </main>
 

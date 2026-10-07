@@ -2,12 +2,14 @@ import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Role } from './types';
 import { useAuth } from './context/AuthContext';
+import { FeriaProvider } from './context/FeriaContext';
 import AppLayout from './components/AppLayout';
 import Landing from './pages/Landing';
 import Ingresar from './pages/Ingresar';
 import RegistroVisitante from './pages/RegistroVisitante';
 import RecuperarPassword from './pages/RecuperarPassword';
 import FichaPublica from './pages/FichaPublica';
+import OrgFerias from './pages/organizador/OrgFerias';
 import OrgResumen from './pages/organizador/OrgResumen';
 import OrgEmpresas from './pages/organizador/OrgEmpresas';
 import OrgVisitantes from './pages/organizador/OrgVisitantes';
@@ -30,11 +32,22 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/ingresar" element={<Ingresar />} />
       <Route path="/registro" element={<RegistroVisitante />} />
+      <Route path="/registro/:feriaId" element={<RegistroVisitante />} />
       <Route path="/recuperar" element={<RecuperarPassword />} />
       <Route path="/ficha/:id" element={<FichaPublica />} />
 
-      <Route path="/organizador" element={<RequireRole role="organizador"><AppLayout role="organizador" /></RequireRole>}>
+      <Route
+        path="/organizador"
+        element={
+          <RequireRole role="organizador">
+            <FeriaProvider>
+              <AppLayout role="organizador" />
+            </FeriaProvider>
+          </RequireRole>
+        }
+      >
         <Route index element={<OrgResumen />} />
+        <Route path="ferias" element={<OrgFerias />} />
         <Route path="empresas" element={<OrgEmpresas />} />
         <Route path="visitantes" element={<OrgVisitantes />} />
         <Route path="leads" element={<OrgLeads />} />

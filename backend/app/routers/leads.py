@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..database import DB
-from ..models import Lead
+from ..models import Empresa, Lead
 from ..schemas import LeadDetalleOut, LeadGuardar, LeadOut, Sesion
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
 from .empresas import obtener_empresa
+from .ferias import exigir_inscripcion
 from .visitantes import obtener_visitante
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -30,6 +31,7 @@ def listar(
     sesion: Annotated[Sesion, Depends(requiere())],
     empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
     visitante_id: Annotated[str | None, Query(alias="visitanteId")] = None,
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
 ):
     empresa_id, visitante_id = alcance(sesion, empresa_id, visitante_id)
     q = select(Lead).options(selectinload(Lead.empresa), selectinload(Lead.visitante)).order_by(Lead.actualizado_en.desc())
@@ -37,6 +39,8 @@ def listar(
         q = q.where(Lead.empresa_id == empresa_id)
     if visitante_id:
         q = q.where(Lead.visitante_id == visitante_id)
+    if feria_id:
+        q = q.where(Lead.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id == feria_id)))
     return db.scalars(q).all()
 
 
@@ -62,8 +66,9 @@ def guardar(
 ):
     """La empresa guarda (o actualiza) la calificación de un visitante escaneado."""
     solo_propio(sesion, "empresa", data.empresa_id)
-    obtener_empresa(db, data.empresa_id)
+    empresa = obtener_empresa(db, data.empresa_id)
     obtener_visitante(db, data.visitante_id)
+    exigir_inscripcion(db, empresa.feria, data.visitante_id)
 
     t = ahora()
     lead = db.scalar(select(Lead).where(Lead.empresa_id == data.empresa_id, Lead.visitante_id == data.visitante_id))

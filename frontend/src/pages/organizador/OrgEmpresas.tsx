@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, ExternalLink, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
-import type { Empresa, NuevaEmpresa } from '../../types';
+import type { Empresa, Feria, NuevaEmpresa } from '../../types';
 import { empresasApi, leadsApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { Alert, Avatar, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 import { CartelStand } from '../../components/Credenciales';
+import { ConFeria } from '../../components/FeriaSelector';
 
-const vacia: NuevaEmpresa = {
+type DatosEmpresa = Omit<NuevaEmpresa, 'feriaId'>;
+
+const vacia: DatosEmpresa = {
   nombre: '',
   rubro: '',
   descripcion: '',
@@ -21,7 +24,14 @@ const vacia: NuevaEmpresa = {
 };
 
 export default function OrgEmpresas() {
-  const { data, cargando, recargar } = useAsync(() => Promise.all([empresasApi.listar(), leadsApi.listar()]), []);
+  return <ConFeria>{(feria) => <EmpresasFeria feria={feria} />}</ConFeria>;
+}
+
+function EmpresasFeria({ feria }: { feria: Feria }) {
+  const { data, cargando, recargar } = useAsync(
+    () => Promise.all([empresasApi.listar(feria.id), leadsApi.listar({ feriaId: feria.id })]),
+    [feria.id],
+  );
   const [editando, setEditando] = useState<Empresa | 'nueva' | null>(null);
   const [qr, setQr] = useState<Empresa | null>(null);
 
@@ -37,7 +47,7 @@ export default function OrgEmpresas() {
     <>
       <PageHeader
         title="Empresas participantes"
-        subtitle="Carga las empresas con su rubro y datos del negocio. Cada una completa luego su ficha digital."
+        subtitle={`Empresas de «${feria.nombre}». Carga su rubro y datos del negocio; cada una completa luego su ficha digital.`}
         actions={
           <button className="btn btn-primary" onClick={() => setEditando('nueva')}>
             <Plus size={17} /> Nueva empresa
@@ -106,11 +116,11 @@ export default function OrgEmpresas() {
       <Modal open={editando !== null} onClose={() => setEditando(null)} title={editando === 'nueva' ? 'Nueva empresa' : 'Editar empresa'}>
         {editando !== null && (
           <FormEmpresaBasica
-            inicial={editando === 'nueva' ? vacia : editando}
+            inicial={editando === 'nueva' ? vacia : datosDe(editando)}
             nueva={editando === 'nueva'}
             onGuardar={async (datos, password) => {
               const conPassword = password ? { ...datos, password } : datos;
-              if (editando === 'nueva') await empresasApi.crear(conPassword);
+              if (editando === 'nueva') await empresasApi.crear({ ...conPassword, feriaId: feria.id });
               else await empresasApi.actualizar(editando.id, conPassword);
               setEditando(null);
               recargar();
@@ -126,20 +136,28 @@ export default function OrgEmpresas() {
   );
 }
 
+function datosDe(e: Empresa): DatosEmpresa {
+  const { id: _id, feriaId: _f, creadoEn: _c, ...datos } = e;
+  void _id;
+  void _f;
+  void _c;
+  return datos;
+}
+
 function FormEmpresaBasica({
   inicial,
   nueva,
   onGuardar,
 }: {
-  inicial: NuevaEmpresa;
+  inicial: DatosEmpresa;
   nueva: boolean;
-  onGuardar: (d: NuevaEmpresa, password: string) => Promise<void>;
+  onGuardar: (d: DatosEmpresa, password: string) => Promise<void>;
 }) {
-  const [f, setF] = useState<NuevaEmpresa>(inicial);
+  const [f, setF] = useState<DatosEmpresa>(inicial);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const set = (k: keyof NuevaEmpresa) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const set = (k: keyof DatosEmpresa) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();

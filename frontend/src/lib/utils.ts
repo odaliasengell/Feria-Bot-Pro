@@ -55,6 +55,29 @@ export function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** "2026-11-06" como fecha local (sin desfase por zona horaria). */
+function diaLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+}
+
+/** Rango de fechas de una feria: "6 – 8 nov 2026" o "6 nov 2026". */
+export function rangoFechas(inicio: string, fin: string): string {
+  const a = diaLocal(inicio);
+  const b = diaLocal(fin);
+  const largo: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  if (inicio === fin) return a.toLocaleDateString('es', largo);
+  const mismoMes = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  const ini = a.toLocaleDateString('es', mismoMes ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+  return `${ini} – ${b.toLocaleDateString('es', largo)}`;
+}
+
+/** Fecha de hoy como "YYYY-MM-DD" (para inputs de tipo date). */
+export function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function fechaHora(iso: string): string {
   return new Date(iso).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }

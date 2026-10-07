@@ -8,9 +8,12 @@ import type {
   AuthRespuesta,
   Calificacion,
   Empresa,
+  Feria,
+  Inscripcion,
   Lead,
   LeadDetalle,
   NuevaEmpresa,
+  NuevaFeria,
   NuevoVisitante,
   Session,
   Visitante,
@@ -104,38 +107,70 @@ export const authApi = {
   yo: () => pedir<Session>('GET', '/auth/me'),
 };
 
+export const feriasApi = {
+  /** `activas`: solo las que aceptan inscripciones (las que ve el registro de visitantes). */
+  listar: (activas = false) => pedir<Feria[]>('GET', '/ferias', undefined, { activas: activas ? 'true' : undefined }),
+
+  obtener: (id: string) => oNull(pedir<Feria>('GET', `/ferias/${encodeURIComponent(id)}`)),
+
+  crear: (data: NuevaFeria) => pedir<Feria>('POST', '/ferias', data),
+
+  actualizar: (id: string, cambios: Partial<NuevaFeria>) => pedir<Feria>('PATCH', `/ferias/${encodeURIComponent(id)}`, cambios),
+
+  /** Borra también sus empresas, leads e inscripciones. Las cuentas de visitante se conservan. */
+  eliminar: (id: string) => pedir<void>('DELETE', `/ferias/${encodeURIComponent(id)}`),
+};
+
+export const inscripcionesApi = {
+  /** El visitante recibe solo las suyas. */
+  listar: (filtro: { visitanteId?: string; feriaId?: string } = {}) => pedir<Inscripcion[]>('GET', '/inscripciones', undefined, filtro),
+
+  /** El visitante se inscribe a otra feria con su cuenta (el organizador indica `visitanteId`). */
+  inscribir: (feriaId: string, visitanteId?: string) => pedir<Inscripcion>('POST', '/inscripciones', { feriaId, visitanteId }),
+
+  /** Organizador: quita al visitante de la feria (y sus leads en ella). */
+  quitar: (feriaId: string, visitanteId: string) =>
+    pedir<void>('DELETE', `/inscripciones/${encodeURIComponent(feriaId)}/${encodeURIComponent(visitanteId)}`),
+};
+
 /** `password` asigna o cambia la contraseña con la que la empresa entra a su panel. */
 type ConPassword<T> = T & { password?: string };
 
 export const empresasApi = {
-  listar: () => pedir<Empresa[]>('GET', '/empresas'),
+  listar: (feriaId?: string) => pedir<Empresa[]>('GET', '/empresas', undefined, { feriaId }),
 
   obtener: (id: string) => oNull(pedir<Empresa>('GET', `/empresas/${encodeURIComponent(id)}`)),
 
   crear: (data: ConPassword<NuevaEmpresa>) => pedir<Empresa>('POST', '/empresas', data),
 
-  actualizar: (id: string, cambios: ConPassword<Partial<NuevaEmpresa>>) =>
+  actualizar: (id: string, cambios: ConPassword<Partial<Omit<NuevaEmpresa, 'feriaId'>>>) =>
     pedir<Empresa>('PATCH', `/empresas/${encodeURIComponent(id)}`, cambios),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/empresas/${encodeURIComponent(id)}`),
 };
 
 export const visitantesApi = {
-  listar: () => pedir<Visitante[]>('GET', '/visitantes'),
+  /** Con `feriaId`, solo los inscritos en esa feria. */
+  listar: (feriaId?: string) => pedir<Visitante[]>('GET', '/visitantes', undefined, { feriaId }),
 
   obtener: (id: string) => oNull(pedir<Visitante>('GET', `/visitantes/${encodeURIComponent(id)}`)),
 
   /** Busca por código de tarjeta o por correo. */
   buscar: (codigoOEmail: string) => oNull(pedir<Visitante>('GET', '/visitantes/buscar', undefined, { q: codigoOEmail.trim() })),
 
-  /** En el registro público con correo hace falta el código enviado con `authApi.enviarCodigo`. */
-  crear: (data: NuevoVisitante, codigoVerificacion?: string) => pedir<Visitante>('POST', '/visitantes', { ...data, codigoVerificacion }),
+  /**
+   * Crea la cuenta y la inscribe en `feriaId`. En el registro público con correo hace falta el código enviado con
+   * `authApi.enviarCodigo`. Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
+   */
+  crear: (feriaId: string, data: NuevoVisitante, codigoVerificacion?: string) =>
+    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, codigoVerificacion }),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };
 
 export const leadsApi = {
-  listar: (filtro: { empresaId?: string; visitanteId?: string } = {}) => pedir<LeadDetalle[]>('GET', '/leads', undefined, filtro),
+  listar: (filtro: { empresaId?: string; visitanteId?: string; feriaId?: string } = {}) =>
+    pedir<LeadDetalle[]>('GET', '/leads', undefined, filtro),
 
   obtener: (empresaId: string, visitanteId: string) =>
     oNull(pedir<Lead>('GET', `/leads/${encodeURIComponent(empresaId)}/${encodeURIComponent(visitanteId)}`)),
@@ -149,7 +184,8 @@ export const vistasApi = {
   /** El visitante abrió la ficha de una empresa escaneando el QR del stand. */
   registrar: (visitanteId: string, empresaId: string) => pedir<VistaFicha>('POST', '/vistas', { visitanteId, empresaId }),
 
-  listar: (filtro: { visitanteId?: string; empresaId?: string } = {}) => pedir<VistaDetalle[]>('GET', '/vistas', undefined, filtro),
+  listar: (filtro: { visitanteId?: string; empresaId?: string; feriaId?: string } = {}) =>
+    pedir<VistaDetalle[]>('GET', '/vistas', undefined, filtro),
 };
 
 export const demoApi = {
