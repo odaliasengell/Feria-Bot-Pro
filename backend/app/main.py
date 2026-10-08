@@ -46,6 +46,12 @@ for r in (auth, ferias, empresas, visitantes, leads, vistas, demo):
     app.include_router(r.router)
 
 
+@app.get("/politica", tags=["sistema"])
+def politica():
+    """Versión vigente de la política de privacidad, para mostrarla junto a la casilla de aceptación."""
+    return {"version": settings.politica_version}
+
+
 @app.get("/health", tags=["sistema"])
 def health():
     return {"ok": True}

@@ -184,6 +184,8 @@ class VisitanteCrear(CamelModel):
     ciudad: str = Field(default="", max_length=100)
     # Obligatorio en el registro público con correo (lo envía POST /auth/enviar-codigo).
     codigo_verificacion: str | None = Field(default=None, max_length=10)
+    # Debe ser true: el visitante acepta la política de privacidad y tratamiento de datos.
+    acepta_politica: bool = False
 
     @field_validator("email")
     @classmethod
@@ -205,6 +207,8 @@ class VisitanteOut(CamelModel):
     email: str
     empresa: str
     ciudad: str
+    politica_aceptada_en: Fecha | None = None
+    politica_version: str | None = None
     creado_en: Fecha
 
     @field_validator("email", mode="before")

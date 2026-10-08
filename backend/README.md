@@ -66,6 +66,10 @@ tiene sus propias **empresas** (`empresas.feria_id`) y, por lo tanto, sus leads 
 - Una empresa solo puede escanear (y guardar leads de) visitantes inscritos en su feria; el visitante solo
   guarda en su historial fichas de ferias en las que está inscrito. Si no, la API responde 403.
 - Al borrar una feria se borran sus empresas, leads, vistas e inscripciones; las cuentas de visitante quedan.
+- Al registrarse, el visitante debe aceptar la política de privacidad (`aceptaPolitica: true` en
+  `POST /visitantes`, si no responde 400). Se guarda `politicaAceptadaEn` y `politicaVersion`
+  (`POLITICA_VERSION` en `.env`, consultable en `GET /politica`); al subir la versión, quien vuelva a
+  registrarse con el organizador queda con la nueva aceptación.
 - Al actualizar desde una versión sin ferias, el arranque crea la «Feria principal» con las empresas y
   visitantes que ya existían.
 
@@ -137,7 +141,8 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `GET /visitantes?feriaId=` | Organizador | Con `feriaId`, solo los inscritos |
 | `GET /visitantes/buscar?q=` | Organizador, empresa | Por código, contenido del QR o correo. A la empresa le da 403 si no está inscrito en su feria |
 | `GET /visitantes/:id` | Organizador, o el propio visitante | |
-| `POST /visitantes` | Público | Registro en una feria (`feriaId`, debe estar abierta); genera el código `FB-XXXXXX`. Con correo exige `codigoVerificacion`. Si el organizador usa un correo existente, inscribe esa cuenta |
+| `GET /politica` | Público | `{ version }` de la política de privacidad vigente |
+| `POST /visitantes` | Público | Exige `aceptaPolitica: true`. Registro en una feria (`feriaId`, debe estar abierta); genera el código `FB-XXXXXX`. Con correo exige `codigoVerificacion`. Si el organizador usa un correo existente, inscribe esa cuenta |
 | `POST /auth/enviar-codigo` | Público | Envía el código de 6 dígitos al correo (`registro` o `ingreso`) |
 | `DELETE /visitantes/:id` | Organizador | Borra en cascada sus leads y vistas |
 | `GET /leads?empresaId=&visitanteId=&feriaId=` | Con sesión | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |

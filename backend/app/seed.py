@@ -100,6 +100,7 @@ def cargar_demo(db: Session) -> None:
         db.add(Visitante(
             id=f"vis-{i + 1}", codigo=codigo, nombre=nombre, telefono=tel, email=email,
             empresa=empresa, ciudad=ciudad, creado_en=hace(60 * 6 - i * 25),
+            politica_aceptada_en=hace(60 * 6 - i * 25), politica_version=settings.politica_version,
         ))
         db.add(Inscripcion(
             id=f"ins-{i + 1}", feria_id="feria-demo", visitante_id=f"vis-{i + 1}", creado_en=hace(60 * 6 - i * 25),

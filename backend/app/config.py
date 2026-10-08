@@ -26,5 +26,9 @@ class Settings(BaseSettings):
     mail_from_name: str = "FeriaBot Pro"
     codigo_minutos: int = 10
 
+    # Versión vigente de la política de privacidad y tratamiento de datos. Al cambiar el texto de la
+    # política se sube la versión; cada visitante guarda la versión que aceptó y cuándo.
+    politica_version: str = "2026-10"
+
 
 settings = Settings()

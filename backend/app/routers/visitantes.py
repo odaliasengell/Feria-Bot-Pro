@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import DB
 from ..models import Empresa, Inscripcion, Visitante
 from ..schemas import Sesion, VisitanteCrear, VisitanteOut
 from ..security import requiere, sesion_opcional, solo_propio
-from ..utils import generar_codigo, leer_codigo_visitante, uid
+from ..utils import ahora, generar_codigo, leer_codigo_visitante, uid
 from ..verificacion import verificar
 from .ferias import exigir_inscripcion, inscribir, obtener_feria
 
@@ -83,6 +84,10 @@ def crear(data: VisitanteCrear, db: DB, sesion: Annotated[Sesion | None, Depends
     código enviado a ese correo; el organizador no lo necesita. Si quien ya tiene cuenta quiere entrar a otra
     feria, debe ingresar e inscribirse (POST /inscripciones); el organizador lo inscribe directamente aquí.
     """
+    if not data.acepta_politica:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Debes aceptar la política de privacidad y tratamiento de datos."
+        )
     es_org = sesion is not None and sesion.role == "organizador"
     feria = obtener_feria(db, data.feria_id)
     if not es_org and not feria.abierta:
@@ -97,6 +102,7 @@ def crear(data: VisitanteCrear, db: DB, sesion: Annotated[Sesion | None, Depends
                 "Ya tienes una cuenta con ese correo. Ingresa con tu correo para inscribirte a esta feria.",
             )
         inscribir(db, feria, existente.id, forzar=True)
+        _registrar_aceptacion(existente)
         db.commit()
         return existente
     if email and not es_org:
@@ -109,13 +115,21 @@ def crear(data: VisitanteCrear, db: DB, sesion: Annotated[Sesion | None, Depends
         codigo = generar_codigo()
 
     visitante = Visitante(
-        **data.model_dump(exclude={"email", "codigo_verificacion", "feria_id"}), email=email, id=uid("vis-"), codigo=codigo
+        **data.model_dump(exclude={"email", "codigo_verificacion", "feria_id", "acepta_politica"}), email=email, id=uid("vis-"), codigo=codigo
     )
+    _registrar_aceptacion(visitante)
     db.add(visitante)
     db.flush()
     inscribir(db, feria, visitante.id, forzar=es_org)
     db.commit()
     return visitante
+
+
+def _registrar_aceptacion(visitante: Visitante) -> None:
+    """Guarda cuándo y qué versión de la política aceptó (se actualiza si acepta una versión nueva)."""
+    if visitante.politica_version != settings.politica_version:
+        visitante.politica_aceptada_en = ahora()
+        visitante.politica_version = settings.politica_version
 
 
 @router.delete("/{visitante_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])

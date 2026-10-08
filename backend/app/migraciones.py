@@ -50,5 +50,16 @@ def _agregar_ferias(engine: Engine) -> None:
     print("Migración: se agregaron las ferias (los datos existentes quedaron en «Feria principal»).")
 
 
+def _agregar_politica(engine: Engine) -> None:
+    """Aceptación de la política de privacidad en visitantes (NULL en las cuentas que ya existían)."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("visitantes")}
+    with engine.begin() as conn:
+        if "politica_aceptada_en" not in columnas:
+            conn.execute(text("ALTER TABLE visitantes ADD COLUMN politica_aceptada_en DATETIME(6) NULL AFTER ciudad"))
+        if "politica_version" not in columnas:
+            conn.execute(text("ALTER TABLE visitantes ADD COLUMN politica_version VARCHAR(20) NULL AFTER politica_aceptada_en"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
+    _agregar_politica(engine)

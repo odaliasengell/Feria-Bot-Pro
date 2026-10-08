@@ -76,6 +76,10 @@ class Visitante(Base):
     email: Mapped[str | None] = mapped_column(String(150), unique=True)
     empresa: Mapped[str] = mapped_column(String(150), default="")
     ciudad: Mapped[str] = mapped_column(String(100), default="")
+    # Aceptación de la política de privacidad y tratamiento de datos (LOPDP).
+    # NULL en cuentas creadas antes de que se pidiera.
+    politica_aceptada_en: Mapped[datetime | None] = mapped_column(Fecha)
+    politica_version: Mapped[str | None] = mapped_column(String(20))
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
 
 
