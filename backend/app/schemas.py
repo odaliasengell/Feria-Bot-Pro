@@ -260,3 +260,30 @@ class VistaOut(CamelModel):
 class VistaDetalleOut(VistaOut):
     empresa: EmpresaOut | None = None
     visitante: VisitanteOut | None = None
+
+
+# ---------- Textos legales (LOPDP) ----------
+
+
+class SeccionLegal(CamelModel):
+    titulo: str
+    parrafos: list[str] = []
+    lista: list[str] = []
+
+
+class ResponsableLegal(CamelModel):
+    nombre: str
+    ruc: str
+    direccion: str
+    email: str
+    telefono: str
+
+
+class DocumentoLegal(CamelModel):
+    slug: Literal["privacidad", "tratamiento-datos"]
+    titulo: str
+    resumen: str
+    version: str
+    actualizado: date
+    responsable: ResponsableLegal
+    secciones: list[SeccionLegal]

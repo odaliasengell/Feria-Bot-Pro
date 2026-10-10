@@ -7,6 +7,7 @@
 import type {
   AuthRespuesta,
   Calificacion,
+  DocumentoLegal,
   Empresa,
   Feria,
   Inscripcion,
@@ -16,6 +17,7 @@ import type {
   NuevaFeria,
   NuevoVisitante,
   Session,
+  SlugLegal,
   Visitante,
   VistaDetalle,
   VistaFicha,
@@ -160,10 +162,10 @@ export const visitantesApi = {
 
   /**
    * Crea la cuenta y la inscribe en `feriaId`. En el registro público con correo hace falta el código enviado con
-   * `authApi.enviarCodigo`. Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
+   * `authApi.enviarCodigo`. `aceptaPolitica` debe ser true (política de privacidad y tratamiento de datos). Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
    */
-  crear: (feriaId: string, data: NuevoVisitante, codigoVerificacion?: string) =>
-    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, codigoVerificacion }),
+  crear: (feriaId: string, data: NuevoVisitante, aceptaPolitica: boolean, codigoVerificacion?: string) =>
+    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, aceptaPolitica, codigoVerificacion }),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };
@@ -190,4 +192,9 @@ export const vistasApi = {
 
 export const demoApi = {
   reiniciar: () => pedir<void>('POST', '/demo/reiniciar'),
+};
+
+export const legalApi = {
+  /** Texto estático de la política de privacidad o del tratamiento de datos (LOPDP). */
+  obtener: (slug: SlugLegal) => pedir<DocumentoLegal>('GET', `/legal/${slug}`),
 };

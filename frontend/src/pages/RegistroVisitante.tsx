@@ -8,6 +8,7 @@ import { useAsync } from '../lib/useAsync';
 import { rangoFechas } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
+import AceptoPolitica from '../components/AceptoPolitica';
 import FormVisitante, { visitanteVacio } from './organizador/FormVisitante';
 
 /**
@@ -37,7 +38,9 @@ export default function RegistroVisitante() {
           <h2>Tu credencial con QR en un minuto.</h2>
           <p>Inscríbete a la feria y presenta tu QR en los stands: cada empresa que lo escanee quedará en tu historial con sus datos de contacto.</p>
         </div>
-        <small>Tus datos solo se comparten con las empresas que escanean tu QR.</small>
+        <small>
+          Tus datos solo se comparten con las empresas que escanean tu QR. <Link to="/privacidad">Política de privacidad</Link>
+        </small>
       </div>
 
       <div className="auth-main">
@@ -106,6 +109,7 @@ function ElegirFeria({ ferias, onElegir }: { ferias: Feria[]; onElegir: (f: Feri
 
 function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiarFeria?: () => void }) {
   const [form, setForm] = useState(visitanteVacio);
+  const [acepta, setAcepta] = useState(false);
   const [paso, setPaso] = useState<'datos' | 'codigo'>('datos');
   const [error, setError] = useState<string | null>(null);
   const [yaTieneCuenta, setYaTieneCuenta] = useState(false);
@@ -115,7 +119,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   const email = form.email.trim().toLowerCase();
 
   async function registrar(codigoVerificacion?: string) {
-    const v = await visitantesApi.crear(feria.id, form, codigoVerificacion);
+    const v = await visitantesApi.crear(feria.id, form, acepta, codigoVerificacion);
     login(await authApi.visitante(v.codigo));
     navigate(`/visitante?nuevo=1&feria=${encodeURIComponent(feria.id)}`);
   }
@@ -174,6 +178,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
       <p className="muted">Completa tus datos para recibir tu tarjeta con QR personal.</p>
       <form className="auth-form" onSubmit={enviar}>
         <FormVisitante value={form} onChange={setForm} />
+        <AceptoPolitica checked={acepta} onChange={setAcepta} />
         {error && (
           <Alert tone="orange">
             {error}

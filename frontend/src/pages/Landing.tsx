@@ -339,6 +339,15 @@ export default function Landing() {
             <a href="#recorridos">Recorridos QR</a>
             <a href="#resultados">Resultados</a>
           </div>
+          <div className="foot-col">
+            <h4>Legal</h4>
+            <Link to="/privacidad">Política de privacidad</Link>
+            <Link to="/tratamiento-datos">Tratamiento de datos</Link>
+          </div>
+        </div>
+        <div className="foot-legal">
+          <span>© {new Date().getFullYear()} FeriaBot Pro</span>
+          <span>Datos personales tratados conforme a la LOPDP (Ecuador)</span>
         </div>
       </footer>
     </div>

@@ -30,5 +30,12 @@ class Settings(BaseSettings):
     # política se sube la versión; cada visitante guarda la versión que aceptó y cuándo.
     politica_version: str = "2026-10"
 
+    # Responsable del tratamiento que aparece en los textos legales (GET /legal/...).
+    responsable_nombre: str = "FeriaBot Pro"
+    responsable_ruc: str = ""
+    responsable_direccion: str = "Quito, Ecuador"
+    responsable_email: str = "privacidad@feriabot.com"
+    responsable_telefono: str = ""
+
 
 settings = Settings()

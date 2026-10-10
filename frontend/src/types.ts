@@ -99,3 +99,17 @@ export interface AuthRespuesta {
 export type NuevaFeria = Pick<Feria, 'nombre' | 'descripcion' | 'lugar' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas'>;
 export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;
+
+/** Textos legales estáticos servidos por el backend (GET /legal/:slug). */
+export type SlugLegal = 'privacidad' | 'tratamiento-datos';
+
+export interface DocumentoLegal {
+  slug: SlugLegal;
+  titulo: string;
+  resumen: string;
+  version: string;
+  /** Fecha de actualización, YYYY-MM-DD. */
+  actualizado: string;
+  responsable: { nombre: string; ruc: string; direccion: string; email: string; telefono: string };
+  secciones: { titulo: string; parrafos: string[]; lista: string[] }[];
+}

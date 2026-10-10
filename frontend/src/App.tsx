@@ -9,6 +9,7 @@ import Ingresar from './pages/Ingresar';
 import RegistroVisitante from './pages/RegistroVisitante';
 import RecuperarPassword from './pages/RecuperarPassword';
 import FichaPublica from './pages/FichaPublica';
+import Legal from './pages/Legal';
 import OrgFerias from './pages/organizador/OrgFerias';
 import OrgResumen from './pages/organizador/OrgResumen';
 import OrgEmpresas from './pages/organizador/OrgEmpresas';
@@ -35,6 +36,8 @@ export default function App() {
       <Route path="/registro/:feriaId" element={<RegistroVisitante />} />
       <Route path="/recuperar" element={<RecuperarPassword />} />
       <Route path="/ficha/:id" element={<FichaPublica />} />
+      <Route path="/privacidad" element={<Legal slug="privacidad" />} />
+      <Route path="/tratamiento-datos" element={<Legal slug="tratamiento-datos" />} />
 
       <Route
         path="/organizador"

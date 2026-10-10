@@ -8,6 +8,7 @@ import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../comp
 import { TarjetaVisitante } from '../../components/Credenciales';
 import { ConFeria } from '../../components/FeriaSelector';
 import FormVisitante, { visitanteVacio } from './FormVisitante';
+import AceptoPolitica from '../../components/AceptoPolitica';
 
 export default function OrgVisitantes() {
   return <ConFeria>{(feria) => <VisitantesFeria feria={feria} />}</ConFeria>;
@@ -145,6 +146,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
 
 function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: Visitante) => void }) {
   const [form, setForm] = useState(visitanteVacio);
+  const [acepta, setAcepta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -153,7 +155,7 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
     setEnviando(true);
     setError(null);
     try {
-      onCreado(await visitantesApi.crear(feria.id, form));
+      onCreado(await visitantesApi.crear(feria.id, form, acepta));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar');
       setEnviando(false);
@@ -163,6 +165,7 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
   return (
     <form onSubmit={enviar} className="stack">
       <FormVisitante value={form} onChange={setForm} />
+      <AceptoPolitica checked={acepta} onChange={setAcepta} porOrganizador />
       <p className="muted small">Si el correo ya tiene cuenta, se inscribe esa cuenta en «{feria.nombre}» con su mismo código.</p>
       {error && <Alert>{error}</Alert>}
       <button className="btn btn-teal btn-block" disabled={enviando}>

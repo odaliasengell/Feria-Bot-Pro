@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
-from .routers import auth, demo, empresas, ferias, leads, visitantes, vistas
+from .routers import auth, demo, empresas, ferias, leads, legal, visitantes, vistas
 from .seed import crear_organizador_inicial
 
 
@@ -42,7 +42,7 @@ async def error_validacion(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": "; ".join(partes), "errors": jsonable_encoder(exc.errors())})
 
 
-for r in (auth, ferias, empresas, visitantes, leads, vistas, demo):
+for r in (auth, ferias, empresas, visitantes, leads, vistas, demo, legal):
     app.include_router(r.router)
 
 
