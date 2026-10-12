@@ -11,6 +11,7 @@ Role = Literal["organizador", "visitante", "empresa"]
 Calificacion = Literal["interesado", "visita", "correo", "no_interesado"]
 PropositoVisitante = Literal["registro", "ingreso"]
 PropositoCodigo = Literal["registro", "ingreso", "recuperar_empresa", "recuperar_organizador"]
+EstadoFeria = Literal["proxima", "en_curso", "finalizada"]
 
 # Las fechas se guardan en UTC y se devuelven como ISO 8601 con "Z", igual que Date.toISOString().
 Fecha = Annotated[
@@ -103,6 +104,7 @@ class FeriaOut(FeriaBase):
     id: str
     # inscripciones_abiertas y la feria aún no termina
     abierta: bool
+    estado: EstadoFeria
     total_empresas: int = 0
     total_visitantes: int = 0
     creado_en: Fecha
@@ -111,6 +113,20 @@ class FeriaOut(FeriaBase):
     @model_validator(mode="after")
     def _fechas(self):
         return self
+
+
+class EmpresaPublicaOut(CamelModel):
+    """Empresa vista desde la página pública de la feria: sin correo ni teléfono."""
+
+    id: str
+    nombre: str
+    rubro: str
+    stand: str
+    logo: str | None = None
+
+
+class FeriaPublicaOut(FeriaOut):
+    empresas: list[EmpresaPublicaOut] = []
 
 
 class InscripcionCrear(CamelModel):

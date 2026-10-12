@@ -129,7 +129,8 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 
 | Método y ruta | Quién | Notas |
 | --- | --- | --- |
-| `GET /ferias?activas=true` · `GET /ferias/:id` | Público | Con `abierta`, `totalEmpresas` y `totalVisitantes` |
+| `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `totalEmpresas` y `totalVisitantes` |
+| `GET /ferias/:id/publica` | Público | La feria con `empresas`: `id`, `nombre`, `rubro`, `stand` y `logo` (sin correo ni teléfono) |
 | `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas }` |
 | `GET /inscripciones?visitanteId=&feriaId=` | Organizador, el propio visitante | Con la `feria` embebida |
 | `POST /inscripciones` | Visitante, organizador | `{ feriaId }` (el organizador agrega `visitanteId`); si ya estaba inscrito devuelve la misma |

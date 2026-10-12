@@ -41,6 +41,14 @@ class Feria(Base):
         """Acepta inscripciones: interruptor encendido y la feria no ha terminado."""
         return bool(self.inscripciones_abiertas) and date.today() <= self.fecha_fin
 
+    @property
+    def estado(self) -> str:
+        """`proxima` (aún no empieza), `en_curso` o `finalizada`, según la fecha de hoy."""
+        hoy = date.today()
+        if hoy < self.fecha_inicio:
+            return "proxima"
+        return "en_curso" if hoy <= self.fecha_fin else "finalizada"
+
 
 class Empresa(Base):
     __tablename__ = "empresas"

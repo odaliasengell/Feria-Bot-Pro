@@ -6,7 +6,17 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import DB
 from ..models import Empresa, Feria, Inscripcion, Lead, VistaFicha
-from ..schemas import FeriaActualizar, FeriaBase, FeriaOut, InscripcionCrear, InscripcionOut, Sesion
+from ..schemas import (
+    EmpresaPublicaOut,
+    EstadoFeria,
+    FeriaActualizar,
+    FeriaBase,
+    FeriaOut,
+    FeriaPublicaOut,
+    InscripcionCrear,
+    InscripcionOut,
+    Sesion,
+)
 from ..security import requiere, solo_propio
 from ..utils import uid
 
@@ -69,17 +79,33 @@ def _con_totales(db: Session, ferias: list[Feria]) -> list[FeriaOut]:
 
 
 @router.get("/ferias", response_model=list[FeriaOut])
-def listar_ferias(db: DB, activas: Annotated[bool, Query(description="Solo las que aceptan inscripciones")] = False):
-    """Público: el registro de visitantes muestra las ferias con inscripción abierta."""
+def listar_ferias(
+    db: DB,
+    activas: Annotated[bool, Query(description="Solo las que aceptan inscripciones")] = False,
+    estado: Annotated[EstadoFeria | None, Query(description="proxima, en_curso o finalizada")] = None,
+):
+    """Público: la página de ferias y el registro de visitantes (con `activas`) las listan sin sesión."""
     ferias = db.scalars(select(Feria).order_by(Feria.fecha_inicio.desc(), Feria.nombre)).all()
     if activas:
         ferias = [f for f in ferias if f.abierta]
+    if estado:
+        ferias = [f for f in ferias if f.estado == estado]
     return _con_totales(db, list(ferias))
 
 
 @router.get("/ferias/{feria_id}", response_model=FeriaOut)
 def obtener(feria_id: str, db: DB):
     return _con_totales(db, [obtener_feria(db, feria_id)])[0]
+
+
+@router.get("/ferias/{feria_id}/publica", response_model=FeriaPublicaOut)
+def obtener_publica(feria_id: str, db: DB):
+    """Detalle público de la feria con sus empresas (logo, nombre, rubro y stand; sin datos de contacto)."""
+    feria = _con_totales(db, [obtener_feria(db, feria_id)])[0]
+    empresas = db.scalars(select(Empresa).where(Empresa.feria_id == feria_id).order_by(Empresa.stand, Empresa.nombre)).all()
+    return FeriaPublicaOut(
+        **feria.model_dump(), empresas=[EmpresaPublicaOut.model_validate(e) for e in empresas]
+    )
 
 
 @router.post(
