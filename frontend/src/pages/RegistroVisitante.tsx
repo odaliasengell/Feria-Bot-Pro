@@ -119,7 +119,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   const email = form.email.trim().toLowerCase();
 
   async function registrar(codigoVerificacion?: string) {
-    const v = await visitantesApi.crear(feria.id, form, acepta, codigoVerificacion);
+    const v = await visitantesApi.crear(feria.id, form, codigoVerificacion);
     login(await authApi.visitante(v.codigo));
     navigate(`/visitante?nuevo=1&feria=${encodeURIComponent(feria.id)}`);
   }
@@ -127,6 +127,10 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   /** Con correo, primero se envía el código y el registro se completa al verificarlo. */
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    if (!acepta) {
+      setError('Debes aceptar la política de privacidad y tratamiento de datos.');
+      return;
+    }
     setEnviando(true);
     setError(null);
     setYaTieneCuenta(false);
@@ -190,7 +194,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
             )}
           </Alert>
         )}
-        <button className="btn btn-teal btn-lg btn-block" disabled={enviando}>
+        <button className="btn btn-teal btn-lg btn-block" disabled={enviando || !acepta}>
           {enviando ? 'Enviando código…' : 'Continuar'} <ArrowRight size={18} />
         </button>
         <p className="muted small center">

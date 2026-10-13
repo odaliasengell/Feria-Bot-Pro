@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
+import { politicaApi } from '../services/api';
+import { useAsync } from '../lib/useAsync';
 
 /**
- * Casilla obligatoria de aceptación de la política de privacidad y el tratamiento de datos (LOPDP).
- * El backend rechaza el registro si `aceptaPolitica` no llega en true y guarda la fecha y versión aceptadas.
- * `porOrganizador`: el personal de la feria confirma que informó al visitante y que este aceptó.
+ * Casilla obligatoria «Acepto la política de privacidad y tratamiento de datos» (LOPDP).
+ * Muestra la versión vigente (GET /politica). El formulario no debe llamar a `visitantesApi.crear`
+ * (que envía `aceptaPolitica: true`) mientras la casilla no esté marcada.
+ * `porOrganizador`: el personal de la feria confirma que el visitante fue informado y aceptó.
  */
 export default function AceptoPolitica({
   checked,
@@ -14,28 +17,23 @@ export default function AceptoPolitica({
   onChange: (v: boolean) => void;
   porOrganizador?: boolean;
 }) {
-  const enlaces = (
-    <>
-      <Link to="/privacidad" target="_blank" rel="noopener">
-        Política de privacidad
-      </Link>{' '}
-      y el{' '}
-      <Link to="/tratamiento-datos" target="_blank" rel="noopener">
-        Tratamiento de datos personales
-      </Link>
-    </>
-  );
+  const { data } = useAsync(() => politicaApi.version(), []);
+
   return (
     <label className="check-row">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} required />
       <span>
-        {porOrganizador ? (
-          <>El visitante fue informado y acepta la {enlaces}.</>
-        ) : (
-          <>
-            He leído y acepto la {enlaces}, y autorizo que mis datos de contacto se compartan con las empresas que escaneen mi QR.
-          </>
-        )}
+        {porOrganizador && 'El visitante indica: '}
+        Acepto la{' '}
+        <Link to="/privacidad" target="_blank" rel="noopener">
+          política de privacidad
+        </Link>{' '}
+        y{' '}
+        <Link to="/tratamiento-datos" target="_blank" rel="noopener">
+          tratamiento de datos
+        </Link>
+        .
+        {data?.version && <span className="check-version">Versión {data.version}</span>}
       </span>
     </label>
   );

@@ -162,10 +162,11 @@ export const visitantesApi = {
 
   /**
    * Crea la cuenta y la inscribe en `feriaId`. En el registro público con correo hace falta el código enviado con
-   * `authApi.enviarCodigo`. `aceptaPolitica` debe ser true (política de privacidad y tratamiento de datos). Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
+   * `authApi.enviarCodigo`. Siempre envía `aceptaPolitica: true`: llámalo solo con la casilla de la política
+   * de privacidad y tratamiento de datos marcada (el backend responde 400 sin ella). Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
    */
-  crear: (feriaId: string, data: NuevoVisitante, aceptaPolitica: boolean, codigoVerificacion?: string) =>
-    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, aceptaPolitica, codigoVerificacion }),
+  crear: (feriaId: string, data: NuevoVisitante, codigoVerificacion?: string) =>
+    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, aceptaPolitica: true, codigoVerificacion }),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };
@@ -192,6 +193,11 @@ export const vistasApi = {
 
 export const demoApi = {
   reiniciar: () => pedir<void>('POST', '/demo/reiniciar'),
+};
+
+export const politicaApi = {
+  /** Versión vigente de la política de privacidad y tratamiento de datos. */
+  version: () => pedir<{ version: string }>('GET', '/politica'),
 };
 
 export const legalApi = {

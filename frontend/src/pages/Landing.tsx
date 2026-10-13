@@ -83,6 +83,7 @@ export default function Landing() {
             <a href="#flujo">Cómo funciona</a>
             <a href="#recorridos">Recorridos QR</a>
             <a href="#resultados">Resultados</a>
+            <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="topnav-actions">
             {session ? (
@@ -285,6 +286,9 @@ export default function Landing() {
               <Link to="/ingresar" className="btn btn-sky">
                 Ver un ejemplo <ArrowRight size={16} />
               </Link>
+              <Link to="/nosotros" className="btn btn-outline">
+                Conoce FeriaBot Pro <ArrowRight size={16} />
+              </Link>
             </div>
           </div>
           <div className="outcome-stack">
@@ -338,6 +342,7 @@ export default function Landing() {
             <a href="#flujo">Cómo funciona</a>
             <a href="#recorridos">Recorridos QR</a>
             <a href="#resultados">Resultados</a>
+            <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="foot-col">
             <h4>Legal</h4>

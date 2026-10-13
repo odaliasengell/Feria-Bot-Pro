@@ -152,10 +152,14 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    if (!acepta) {
+      setError('El visitante debe aceptar la política de privacidad y tratamiento de datos.');
+      return;
+    }
     setEnviando(true);
     setError(null);
     try {
-      onCreado(await visitantesApi.crear(feria.id, form, acepta));
+      onCreado(await visitantesApi.crear(feria.id, form));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar');
       setEnviando(false);
@@ -168,7 +172,7 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
       <AceptoPolitica checked={acepta} onChange={setAcepta} porOrganizador />
       <p className="muted small">Si el correo ya tiene cuenta, se inscribe esa cuenta en «{feria.nombre}» con su mismo código.</p>
       {error && <Alert>{error}</Alert>}
-      <button className="btn btn-teal btn-block" disabled={enviando}>
+      <button className="btn btn-teal btn-block" disabled={enviando || !acepta}>
         {enviando ? 'Generando…' : 'Registrar y generar tarjeta QR'}
       </button>
     </form>
