@@ -10,7 +10,7 @@ from pydantic.alias_generators import to_camel
 Role = Literal["organizador", "visitante", "empresa"]
 Calificacion = Literal["interesado", "visita", "correo", "no_interesado"]
 PropositoVisitante = Literal["registro", "ingreso"]
-PropositoCodigo = Literal["registro", "ingreso", "recuperar_empresa", "recuperar_organizador"]
+PropositoCodigo = Literal["registro", "ingreso", "recuperar_empresa", "recuperar_organizador", "cambio_correo"]
 EstadoFeria = Literal["proxima", "en_curso", "finalizada"]
 
 # Las fechas se guardan en UTC y se devuelven como ISO 8601 con "Z", igual que Date.toISOString().
@@ -213,6 +213,23 @@ class VisitanteCrear(CamelModel):
             except EmailNotValidError:
                 raise ValueError("Correo no válido")
         return v
+
+
+class VisitanteActualizar(CamelModel):
+    """Cambios que el visitante hace en sus propios datos (el correo se cambia aparte, con código)."""
+
+    nombre: str | None = Field(default=None, min_length=1, max_length=150)
+    telefono: str | None = Field(default=None, max_length=40)
+    empresa: str | None = Field(default=None, max_length=150)
+    ciudad: str | None = Field(default=None, max_length=100)
+
+
+class CambioCorreoEnviar(CamelModel):
+    email: EmailStr
+
+
+class CambioCorreo(CambioCorreoEnviar):
+    codigo: str = Field(min_length=1, max_length=10, description="Código de 6 dígitos enviado al correo nuevo")
 
 
 class VisitanteOut(CamelModel):

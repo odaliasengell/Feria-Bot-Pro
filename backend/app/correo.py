@@ -40,7 +40,7 @@ def enviar_correo(destino: str, asunto: str, texto: str, html: str) -> None:
         raise CorreoError(str(e)) from e
 
 
-# Título y mensaje del correo según para qué es el código (registro, ingreso o recuperar_*).
+# Título y mensaje del correo según para qué es el código (registro, ingreso, recuperar_* o cambio_correo).
 TEXTOS_CODIGO = {
     "registro": ("Confirma tu correo", "Escribe este código en la app para confirmar tu correo:"),
     "ingreso": ("Tu código para ingresar", "Escribe este código en la app para entrar:"),
@@ -48,6 +48,7 @@ TEXTOS_CODIGO = {
         "Restablece tu contraseña",
         "Recibimos una solicitud para cambiar tu contraseña. Escribe este código en la app:",
     ),
+    "cambio": ("Confirma tu nuevo correo", "Escribe este código en la app para usar este correo en tu cuenta:"),
 }
 
 

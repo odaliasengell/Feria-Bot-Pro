@@ -144,6 +144,10 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `GET /visitantes/:id` | Organizador, o el propio visitante | |
 | `GET /politica` | Público | `{ version }` de la política de privacidad vigente |
 | `POST /visitantes` | Público | Exige `aceptaPolitica: true`. Registro en una feria (`feriaId`, debe estar abierta); genera el código `FB-XXXXXX`. Con correo exige `codigoVerificacion`. Si el organizador usa un correo existente, inscribe esa cuenta |
+| `PATCH /visitantes/me` | El propio visitante | `{ nombre?, telefono?, empresa?, ciudad? }`; devuelve el visitante |
+| `POST /visitantes/me/correo/enviar-codigo` | El propio visitante | `{ email }`: envía un código al correo nuevo (409 si ya existe o es el mismo); 204 |
+| `POST /visitantes/me/correo` | El propio visitante | `{ email, codigo }`: cambia el correo y devuelve el visitante |
+| `DELETE /visitantes/me` | El propio visitante | Borra su cuenta con sus inscripciones, leads y vistas; 204 |
 | `POST /auth/enviar-codigo` | Público | Envía el código de 6 dígitos al correo (`registro` o `ingreso`) |
 | `DELETE /visitantes/:id` | Organizador | Borra en cascada sus leads y vistas |
 | `GET /leads?empresaId=&visitanteId=&feriaId=` | Con sesión | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |
