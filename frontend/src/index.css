@@ -645,6 +645,24 @@ textarea.input { resize: vertical; min-height: 44px; }
 .legal-section li { margin-bottom: 4px; }
 .legal-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
 
+/* ---------- Ferias públicas (/ferias) ---------- */
+.ferias-pub { padding-top: 72px; }
+.ferias-pub .section-head { margin-bottom: 32px; }
+.ferias-pub-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+.tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); max-width: 100%; overflow-x: auto; }
+.tab { border: 0; background: transparent; padding: 8px 14px; border-radius: var(--r); font: inherit; font-size: 0.92rem; font-weight: 700; color: var(--pebble); cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--ink); background: var(--canvas); }
+.tab.is-active { background: var(--ink); color: #fff; }
+.ferias-pub-bar .search { max-width: 420px; }
+.ferias-pub-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 20px; }
+.feria-pub-card { display: flex; flex-direction: column; gap: 6px; height: 100%; color: var(--ink); text-decoration: none !important; transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
+.feria-pub-card:hover { border-color: var(--ink); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.feria-pub-card .feria-card-title { margin-top: 10px; }
+.feria-insc { font-size: 0.78rem; font-weight: 700; color: var(--pebble); }
+.feria-insc.is-open { color: #0a7a45; }
+.feria-insc.is-open::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); border: 1px solid #0a7a45; margin-right: 6px; vertical-align: 1px; }
+.feria-pub-link { padding-top: 14px; }
+
 /* ---------- Nosotros ---------- */
 .about-hero { padding-top: 88px; padding-bottom: 72px; }
 .about-hero h1 { font-family: var(--font-display); font-size: clamp(2.4rem, 5.5vw, 4rem); line-height: 1.02; letter-spacing: -0.033em; margin: 20px 0 24px; max-width: 18ch; }

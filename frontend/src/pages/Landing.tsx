@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  CalendarDays,
   Check,
   ContactRound,
   IdCard,
@@ -83,6 +84,7 @@ export default function Landing() {
             <a href="#flujo">Cómo funciona</a>
             <a href="#recorridos">Recorridos QR</a>
             <a href="#resultados">Resultados</a>
+            <Link to="/ferias">Ferias</Link>
             <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="topnav-actions">
@@ -120,6 +122,9 @@ export default function Landing() {
             </Link>
             <Link to="/ingresar?rol=empresa" className="btn btn-primary btn-lg">
               <Store size={18} /> Soy empresa <ArrowRight size={18} />
+            </Link>
+            <Link to="/ferias" className="btn btn-outline btn-lg">
+              <CalendarDays size={18} /> Ver ferias
             </Link>
           </div>
           <div className="cmd-bar" aria-label="Ejemplo de escaneo">
@@ -330,6 +335,7 @@ export default function Landing() {
           </div>
           <div className="foot-col">
             <h4>Participa</h4>
+            <Link to="/ferias">Ver ferias</Link>
             <Link to="/registro">
               <UserPlus size={14} style={{ verticalAlign: -2, marginRight: 6 }} />
               Registro de visitante

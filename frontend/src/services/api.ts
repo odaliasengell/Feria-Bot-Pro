@@ -9,6 +9,7 @@ import type {
   Calificacion,
   DocumentoLegal,
   Empresa,
+  EstadoFeria,
   Feria,
   Inscripcion,
   Lead,
@@ -110,8 +111,12 @@ export const authApi = {
 };
 
 export const feriasApi = {
-  /** `activas`: solo las que aceptan inscripciones (las que ve el registro de visitantes). */
-  listar: (activas = false) => pedir<Feria[]>('GET', '/ferias', undefined, { activas: activas ? 'true' : undefined }),
+  /**
+   * `activas`: solo las que aceptan inscripciones (las que ve el registro de visitantes).
+   * `estado`: solo las próximas, en curso o finalizadas (página pública /ferias). Es público, no requiere sesión.
+   */
+  listar: (activas = false, estado?: EstadoFeria) =>
+    pedir<Feria[]>('GET', '/ferias', undefined, { activas: activas ? 'true' : undefined, estado }),
 
   obtener: (id: string) => oNull(pedir<Feria>('GET', `/ferias/${encodeURIComponent(id)}`)),
 

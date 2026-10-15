@@ -1,6 +1,9 @@
 export type Role = 'organizador' | 'visitante' | 'empresa';
 
 /** Feria creada por el organizador. Empresas, visitantes inscritos y leads pertenecen a una feria. */
+/** Calculado por el backend según las fechas: antes del inicio, entre inicio y fin, o después del fin. */
+export type EstadoFeria = 'proxima' | 'en_curso' | 'finalizada';
+
 export interface Feria {
   id: string;
   nombre: string;
@@ -12,6 +15,7 @@ export interface Feria {
   inscripcionesAbiertas: boolean;
   /** Acepta inscripciones: interruptor encendido y la feria no terminó. */
   abierta: boolean;
+  estado: EstadoFeria;
   totalEmpresas: number;
   totalVisitantes: number;
   creadoEn: string;
