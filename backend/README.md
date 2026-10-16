@@ -89,6 +89,16 @@ Cada login devuelve `{ token, session }`, donde `session` tiene la misma forma q
 
 `GET /auth/me` devuelve la sesión del token.
 
+El organizador y la empresa pueden cambiar sus datos de acceso con su sesión iniciada:
+
+- `POST /auth/cambiar-password` con `{ passwordActual, passwordNueva }` (mínimo 6 caracteres). Responde 204,
+  o 400 si la actual no es correcta o la nueva es igual.
+- `POST /auth/cambiar-correo` con `{ email, password }` (la contraseña actual). Devuelve `{ token, session }`
+  nuevos; 409 si otra cuenta del mismo tipo ya usa ese correo, 400 si la contraseña no es correcta.
+
+El organizador de `ADMIN_EMAIL` / `ADMIN_PASSWORD` solo se crea al arrancar si no existe ningún organizador, así
+que después de cambiar el correo o la contraseña desde la app no vuelve a aparecer la cuenta por defecto.
+
 `/auth/recuperar/enviar-codigo` responde lo mismo exista o no la cuenta, para no revelar qué correos están
 registrados. Una empresa sin contraseña asignada también puede crear la suya por esta vía.
 

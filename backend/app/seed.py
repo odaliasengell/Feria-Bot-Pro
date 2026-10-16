@@ -22,8 +22,13 @@ PASSWORD_DEMO_EMPRESAS = "empresa123"
 
 
 def crear_organizador_inicial(db: Session) -> None:
+    """Crea el organizador de ADMIN_EMAIL solo si todavía no hay ninguno.
+
+    Así, si el organizador cambia su correo o contraseña desde la app, al reiniciar no reaparece la cuenta
+    por defecto (admin@feriabot.com / admin123).
+    """
     email = settings.admin_email.lower()
-    if db.scalar(select(Organizador.id).where(Organizador.email == email)):
+    if db.scalar(select(Organizador.id).limit(1)):
         return
     db.add(
         Organizador(

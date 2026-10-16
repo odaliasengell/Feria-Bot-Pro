@@ -1,12 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 
 from ..config import settings
 from ..database import DB
 from ..models import Empresa, Organizador, Visitante
 from ..schemas import (
+    CambiarCorreo,
+    CambiarPassword,
     EnviarCodigo,
     EnviarCodigoOut,
     LoginPassword,
@@ -115,6 +117,52 @@ def recuperar_cambiar(data: RecuperarCambiar, db: DB):
     cuenta.password_hash = hash_password(data.password)
     db.commit()
     return _token(Sesion(role=data.role, ref_id=cuenta.id, nombre=cuenta.nombre))
+
+
+# ---------- Cuenta propia del organizador o la empresa ----------
+
+SesionConPassword = Annotated[Sesion, Depends(requiere("organizador", "empresa"))]
+
+
+def _cuenta_de_sesion(db: DB, sesion: Sesion) -> Empresa | Organizador:
+    modelo = Empresa if sesion.role == "empresa" else Organizador
+    cuenta = db.get(modelo, sesion.ref_id)
+    if not cuenta:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontramos tu cuenta. Vuelve a ingresar.")
+    return cuenta
+
+
+def _confirmar_password(cuenta: Empresa | Organizador, password: str) -> None:
+    if not cuenta.password_hash or not verificar_password(password, cuenta.password_hash):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta.")
+
+
+@router.post("/cambiar-password", status_code=status.HTTP_204_NO_CONTENT)
+def cambiar_password(data: CambiarPassword, db: DB, sesion: SesionConPassword):
+    """El organizador o la empresa cambia su contraseña confirmando la actual."""
+    cuenta = _cuenta_de_sesion(db, sesion)
+    _confirmar_password(cuenta, data.password_actual)
+    if data.password_nueva == data.password_actual:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La nueva contraseña debe ser distinta de la actual.")
+    cuenta.password_hash = hash_password(data.password_nueva)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/cambiar-correo", response_model=TokenOut)
+def cambiar_correo(data: CambiarCorreo, db: DB, sesion: SesionConPassword):
+    """El organizador o la empresa cambia el correo con el que ingresa, confirmando su contraseña."""
+    cuenta = _cuenta_de_sesion(db, sesion)
+    _confirmar_password(cuenta, data.password)
+    email = data.email.lower()
+    if email != cuenta.email:
+        modelo = type(cuenta)
+        otro = db.scalar(select(modelo.id).where(modelo.email == email))
+        if otro and otro != cuenta.id:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese correo.")
+        cuenta.email = email
+        db.commit()
+    return _token(Sesion(role=sesion.role, ref_id=cuenta.id, nombre=cuenta.nombre))
 
 
 @router.get("/me", response_model=Sesion)

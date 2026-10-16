@@ -68,6 +68,16 @@ class LoginVisitanteCorreo(CamelModel):
     codigo: str = Field(min_length=1, max_length=10, description="Código de 6 dígitos recibido por correo")
 
 
+class CambiarPassword(CamelModel):
+    password_actual: str = Field(max_length=72)
+    password_nueva: Password
+
+
+class CambiarCorreo(CamelModel):
+    email: EmailStr = Field(max_length=150)
+    password: str = Field(max_length=72, description="Contraseña actual, para confirmar el cambio")
+
+
 class TokenOut(CamelModel):
     token: str
     session: Sesion
