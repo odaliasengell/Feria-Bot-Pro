@@ -663,6 +663,29 @@ textarea.input { resize: vertical; min-height: 44px; }
 .feria-insc.is-open::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); border: 1px solid #0a7a45; margin-right: 6px; vertical-align: 1px; }
 .feria-pub-link { padding-top: 14px; }
 
+/* ---------- Detalle público de feria (/ferias/:id) ---------- */
+.feria-det { padding-top: 56px; }
+.feria-det-head { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
+@media (max-width: 860px) { .feria-det-head { grid-template-columns: 1fr; } }
+.feria-det-badges { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.feria-det-info h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; letter-spacing: -0.03em; margin: 16px 0 20px; overflow-wrap: anywhere; }
+.feria-det-meta { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.feria-det-meta li { display: flex; align-items: center; gap: 10px; font-size: 1rem; color: var(--slate); }
+.feria-det-meta li svg { flex: none; }
+.feria-det-meta a { display: inline-flex; align-items: center; gap: 5px; color: var(--cobalt); font-weight: 600; overflow-wrap: anywhere; }
+.feria-det-desc { margin-top: 24px; color: var(--ink); font-size: 1.02rem; line-height: 1.65; white-space: pre-line; max-width: 70ch; }
+.feria-cta { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 88px; }
+.feria-cta h3 { font-size: 1.1rem; }
+.feria-cta-ok { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #0a7a45; }
+.feria-det-empresas { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--line); }
+.feria-det-empresas h2 { font-family: var(--font-display); font-size: 1.6rem; letter-spacing: -0.02em; margin-bottom: 20px; }
+.empresas-pub-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+.empresa-pub-card { display: flex; align-items: center; gap: 14px; padding: 16px; height: 100%; color: var(--ink); text-decoration: none !important; transition: border-color 0.15s, box-shadow 0.15s; }
+.empresa-pub-card:hover { border-color: var(--ink); box-shadow: var(--shadow-md); }
+.empresa-pub-card .grow { display: flex; flex-direction: column; gap: 2px; }
+.empresa-pub-card strong { overflow-wrap: anywhere; }
+.empresa-pub-card .code { white-space: nowrap; align-self: flex-start; }
+
 /* ---------- Nosotros ---------- */
 .about-hero { padding-top: 88px; padding-bottom: 72px; }
 .about-hero h1 { font-family: var(--font-display); font-size: clamp(2.4rem, 5.5vw, 4rem); line-height: 1.02; letter-spacing: -0.033em; margin: 20px 0 24px; max-width: 18ch; }

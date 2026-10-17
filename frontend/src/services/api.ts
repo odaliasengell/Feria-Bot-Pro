@@ -11,6 +11,7 @@ import type {
   Empresa,
   EstadoFeria,
   Feria,
+  FeriaPublica,
   Inscripcion,
   Lead,
   LeadDetalle,
@@ -119,6 +120,9 @@ export const feriasApi = {
     pedir<Feria[]>('GET', '/ferias', undefined, { activas: activas ? 'true' : undefined, estado }),
 
   obtener: (id: string) => oNull(pedir<Feria>('GET', `/ferias/${encodeURIComponent(id)}`)),
+
+  /** Público: la feria con sus empresas (logo, nombre, rubro y stand). `null` si no existe. */
+  obtenerPublica: (id: string) => oNull(pedir<FeriaPublica>('GET', `/ferias/${encodeURIComponent(id)}/publica`)),
 
   crear: (data: NuevaFeria) => pedir<Feria>('POST', '/ferias', data),
 

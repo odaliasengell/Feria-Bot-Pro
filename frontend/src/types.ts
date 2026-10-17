@@ -21,6 +21,20 @@ export interface Feria {
   creadoEn: string;
 }
 
+/** Empresa vista en la página pública de la feria (sin datos de contacto). */
+export interface EmpresaPublica {
+  id: string;
+  nombre: string;
+  rubro: string;
+  stand: string;
+  logo?: string | null;
+}
+
+/** GET /ferias/:id/publica: la feria más sus empresas participantes. */
+export interface FeriaPublica extends Feria {
+  empresas: EmpresaPublica[];
+}
+
 /** Un visitante (una sola cuenta) inscrito a una feria. */
 export interface Inscripcion {
   id: string;
