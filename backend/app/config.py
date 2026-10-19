@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     mail_from_name: str = "FeriaBot Pro"
     codigo_minutos: int = 10
+    # Dirección del frontend, para los enlaces de los correos (botón "Entrar").
+    frontend_url: str = "http://localhost:5173"
 
     # Versión vigente de la política de privacidad y tratamiento de datos. Al cambiar el texto de la
     # política se sube la versión; cada visitante guarda la versión que aceptó y cuándo.

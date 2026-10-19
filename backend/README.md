@@ -127,6 +127,17 @@ registrados. Una empresa sin contraseña asignada también puede crear la suya p
 El diseño del correo está en `app/plantillas/codigo_verificacion.html` (variables `$codigo`, `$minutos`,
 `$app`). Para verlo en el navegador sin enviar nada: `.\.venv\Scripts\python -m app.correo`.
 
+Además del código, se envían dos correos de bienvenida, en segundo plano (si fallan, el registro sigue igual
+y el error queda en el log):
+
+- **Visitante nuevo con correo** (`POST /visitantes`): su código `FB-XXXXXX` y la imagen del QR
+  (`FERIABOT:V:<codigo>`, plantilla `bienvenida_visitante.html`).
+- **Empresa creada con contraseña** (`POST /empresas`): su correo de acceso y la contraseña
+  (plantilla `acceso_empresa.html`).
+
+Los botones de esos correos apuntan a `FRONTEND_URL`. Vista previa: `.\.venv\Scripts\python -m app.correo visitante`
+o `... app.correo empresa`.
+
 Mientras `SMTP_USER` esté vacío no se envía nada y el código aparece en la consola del backend
 (`[correo no configurado] Código para ...`), útil para desarrollo. Gmail permite unos 500 correos al día;
 para más volumen usa un servicio como Brevo o SendGrid cambiando `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` y

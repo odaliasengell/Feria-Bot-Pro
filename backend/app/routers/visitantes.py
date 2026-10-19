@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
 from ..models import CodigoVerificacion, Empresa, Inscripcion, Visitante
 from ..schemas import CambioCorreo, CambioCorreoEnviar, Sesion, VisitanteActualizar, VisitanteCrear, VisitanteOut
@@ -145,7 +146,12 @@ def obtener(
 
 
 @router.post("", response_model=VisitanteOut, status_code=status.HTTP_201_CREATED)
-def crear(data: VisitanteCrear, db: DB, sesion: Annotated[Sesion | None, Depends(sesion_opcional)]):
+def crear(
+    data: VisitanteCrear,
+    db: DB,
+    sesion: Annotated[Sesion | None, Depends(sesion_opcional)],
+    tareas: BackgroundTasks,
+):
     """Registro del visitante en una feria (también lo usa el organizador en la entrada).
 
     Crea la cuenta del visitante y lo inscribe en `feriaId`. En el registro público con correo se exige el
@@ -190,6 +196,12 @@ def crear(data: VisitanteCrear, db: DB, sesion: Annotated[Sesion | None, Depends
     db.flush()
     inscribir(db, feria, visitante.id, forzar=es_org)
     db.commit()
+    if email:
+        # En segundo plano: el registro responde de inmediato y un correo fallido no lo afecta.
+        tareas.add_task(
+            enviar_sin_fallar, enviar_bienvenida_visitante,
+            email, visitante.nombre, visitante.codigo, feria.nombre, rango_fechas(feria.fecha_inicio, feria.fecha_fin),
+        )
     return visitante
 
 

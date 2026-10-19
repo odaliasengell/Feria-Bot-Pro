@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..correo import enviar_acceso_empresa, enviar_sin_fallar, rango_fechas
 from ..database import DB
 from ..models import Empresa
 from ..schemas import EmpresaActualizar, EmpresaCrear, EmpresaOut, Sesion
@@ -44,11 +45,11 @@ def obtener(empresa_id: str, db: DB):
 
 
 @router.post("", response_model=EmpresaOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(requiere("organizador"))])
-def crear(data: EmpresaCrear, db: DB):
+def crear(data: EmpresaCrear, db: DB, tareas: BackgroundTasks):
     campos = data.model_dump(exclude={"password"})
     campos["email"] = campos["email"].lower()
     _validar_email_libre(db, campos["email"])
-    obtener_feria(db, data.feria_id)
+    feria = obtener_feria(db, data.feria_id)
     empresa = Empresa(
         **campos,
         id=uid("emp-"),
@@ -56,6 +57,12 @@ def crear(data: EmpresaCrear, db: DB):
     )
     db.add(empresa)
     db.commit()
+    if data.password:
+        # En segundo plano: la empresa se crea aunque el correo falle.
+        tareas.add_task(
+            enviar_sin_fallar, enviar_acceso_empresa,
+            empresa.email, empresa.nombre, data.password, feria.nombre, rango_fechas(feria.fecha_inicio, feria.fecha_fin),
+        )
     return empresa
 
 
