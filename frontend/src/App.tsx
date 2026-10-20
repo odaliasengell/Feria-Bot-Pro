@@ -23,6 +23,7 @@ import EmpresaEscanear from './pages/empresa/EmpresaEscanear';
 import EmpresaFicha from './pages/empresa/EmpresaFicha';
 import VisitanteTarjeta from './pages/visitante/VisitanteTarjeta';
 import VisitanteEscanear from './pages/visitante/VisitanteEscanear';
+import VisitanteCuenta from './pages/visitante/VisitanteCuenta';
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { session } = useAuth();
@@ -71,6 +72,7 @@ export default function App() {
       <Route path="/visitante" element={<RequireRole role="visitante"><AppLayout role="visitante" /></RequireRole>}>
         <Route index element={<VisitanteTarjeta />} />
         <Route path="escanear" element={<VisitanteEscanear />} />
+        <Route path="cuenta" element={<VisitanteCuenta />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

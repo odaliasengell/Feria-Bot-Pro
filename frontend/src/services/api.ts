@@ -180,6 +180,23 @@ export const visitantesApi = {
   eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };
 
+/** Datos que el visitante puede editar de su cuenta (el correo se cambia aparte, con código). */
+export type CambiosMiCuenta = Partial<Pick<Visitante, 'nombre' | 'telefono' | 'empresa' | 'ciudad'>>;
+
+/** «Mi cuenta» del visitante con sesión iniciada. */
+export const miCuentaApi = {
+  actualizar: (cambios: CambiosMiCuenta) => pedir<Visitante>('PATCH', '/visitantes/me', cambios),
+
+  /** Paso 1 del cambio de correo: envía un código de 6 dígitos al correo nuevo. */
+  enviarCodigoCorreo: (email: string) => pedir<void>('POST', '/visitantes/me/correo/enviar-codigo', { email }),
+
+  /** Paso 2: confirma el correo nuevo con el código recibido. */
+  cambiarCorreo: (email: string, codigo: string) => pedir<Visitante>('POST', '/visitantes/me/correo', { email, codigo }),
+
+  /** Borra la cuenta con sus inscripciones, leads y vistas. */
+  borrar: () => pedir<void>('DELETE', '/visitantes/me'),
+};
+
 export const leadsApi = {
   listar: (filtro: { empresaId?: string; visitanteId?: string; feriaId?: string } = {}) =>
     pedir<LeadDetalle[]>('GET', '/leads', undefined, filtro),

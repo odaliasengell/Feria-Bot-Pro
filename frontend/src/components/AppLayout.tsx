@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   ScanLine,
+  UserCog,
   Store,
   Users,
   type LucideIcon,
@@ -33,6 +34,7 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
   visitante: [
     { to: '/visitante', label: 'Mi tarjeta', icon: IdCard, end: true },
     { to: '/visitante/escanear', label: 'Escanear stand', icon: ScanLine },
+    { to: '/visitante/cuenta', label: 'Mi cuenta', icon: UserCog },
   ],
 };
 

@@ -8,6 +8,8 @@ interface AuthValue {
   session: Session | null;
   login: (auth: AuthRespuesta) => void;
   logout: () => void;
+  /** Actualiza datos de la sesión guardada (por ejemplo, el nombre tras editar la cuenta). */
+  actualizarSesion: (cambios: Partial<Session>) => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -41,10 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
+  const actualizarSesion = useCallback((cambios: Partial<Session>) => {
+    const auth = leerAuth();
+    if (!auth) return;
+    const nueva = { ...auth, session: { ...auth.session, ...cambios } };
+    localStorage.setItem(KEY, JSON.stringify(nueva));
+    setSession(nueva.session);
+  }, []);
+
   // Si el backend rechaza el token (vencido), se cierra la sesión y las rutas protegidas mandan a /ingresar.
   useEffect(() => alExpirarSesion(logout), [logout]);
 
-  const value = useMemo(() => ({ session, login, logout }), [session, login, logout]);
+  const value = useMemo(() => ({ session, login, logout, actualizarSesion }), [session, login, logout, actualizarSesion]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

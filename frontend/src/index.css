@@ -645,6 +645,13 @@ textarea.input { resize: vertical; min-height: 44px; }
 .legal-section li { margin-bottom: 4px; }
 .legal-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
 
+/* ---------- Mi cuenta (visitante) ---------- */
+.mt-sm { margin-top: 14px; }
+.btn-danger { background: var(--crimson); color: #fff; box-shadow: var(--shadow-subtle); }
+.btn-danger:hover:not(:disabled) { background: #a40e26; }
+.card-danger { border-color: rgba(207, 34, 46, 0.35); }
+.card-danger .card-head h2 { color: var(--crimson); }
+
 /* ---------- Ferias públicas (/ferias) ---------- */
 .ferias-pub { padding-top: 72px; }
 .ferias-pub .section-head { margin-bottom: 32px; }
