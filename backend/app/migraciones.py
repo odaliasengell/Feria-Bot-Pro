@@ -60,6 +60,17 @@ def _agregar_politica(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE visitantes ADD COLUMN politica_version VARCHAR(20) NULL AFTER politica_aceptada_en"))
 
 
+def _agregar_recordatorio(engine: Engine) -> None:
+    """Marca del recordatorio enviado a los inscritos un día antes de la feria."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("ferias")}
+    if "recordatorio_enviado_en" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE ferias ADD COLUMN recordatorio_enviado_en DATETIME(6) NULL AFTER inscripciones_abiertas")
+            )
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
+    _agregar_recordatorio(engine)

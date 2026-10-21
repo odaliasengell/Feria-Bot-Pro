@@ -173,6 +173,35 @@ def enviar_acceso_empresa(destino: str, empresa: str, password: str, feria: str,
     enviar_correo(destino, f"Tu acceso a {settings.mail_from_name} para {feria}", texto, html)
 
 
+def contenido_recordatorio(
+    nombre: str, codigo: str, feria: str, fechas: str, lugar: str, qr_src: str = "cid:qr"
+) -> tuple[str, str]:
+    url = f"{settings.frontend_url.rstrip('/')}/ingresar?rol=visitante"
+    lugar = lugar or "Por confirmar"
+    texto = (
+        f"Hola, {nombre}\n\nMañana empieza {feria}.\nCuándo: {fechas}\nDónde: {lugar}\n\n"
+        f"Lleva tu código {codigo} (o el QR adjunto) para que las empresas registren tu visita.\n\n"
+        f"Ver tu tarjeta en la app: {url}"
+    )
+    html = _plantilla(
+        "recordatorio_feria.html",
+        {"nombre": nombre, "codigo": codigo, "feria": feria, "fechas": fechas, "lugar": lugar, "qr_src": qr_src,
+         "url_ingresar": url, "app": settings.mail_from_name},
+    )
+    return texto, html
+
+
+def enviar_recordatorio_feria(destino: str, nombre: str, codigo: str, feria: str, fechas: str, lugar: str) -> None:
+    """Recordatorio un día antes de la feria, con la tarjeta del visitante (código y QR)."""
+    if not settings.smtp_user:
+        print(f"[correo no configurado] Recordatorio de {feria} para {destino} ({codigo})", flush=True)
+        return
+    from .utils import PREFIJO_QR_VISITANTE
+
+    texto, html = contenido_recordatorio(nombre, codigo, feria, fechas, lugar)
+    enviar_correo(destino, f"Mañana empieza {feria}", texto, html, imagenes={"qr": qr_png(PREFIJO_QR_VISITANTE + codigo)})
+
+
 def enviar_sin_fallar(funcion: Callable[..., None], *args) -> None:
     """Para tareas en segundo plano: un correo que falla se registra en el log y no afecta al registro."""
     try:
@@ -186,6 +215,7 @@ if __name__ == "__main__":
     #   .\.venv\Scripts\python -m app.correo            (código de verificación)
     #   .\.venv\Scripts\python -m app.correo visitante  (bienvenida con QR)
     #   .\.venv\Scripts\python -m app.correo empresa    (acceso de empresa)
+    #   .\.venv\Scripts\python -m app.correo recordatorio (un día antes de la feria)
     import sys
     import webbrowser
 
@@ -194,6 +224,11 @@ if __name__ == "__main__":
     if tipo == "visitante":
         qr = "data:image/png;base64," + base64.b64encode(qr_png("FERIABOT:V:FB-7K3PQX")).decode()
         html = contenido_bienvenida_visitante("María José", "FB-7K3PQX", "Expo Negocios 2026", fechas, qr)[1]
+    elif tipo == "recordatorio":
+        qr = "data:image/png;base64," + base64.b64encode(qr_png("FERIABOT:V:FB-7K3PQX")).decode()
+        html = contenido_recordatorio(
+            "María José", "FB-7K3PQX", "Expo Negocios 2026", fechas, "Centro de Convenciones, Quito", qr
+        )[1]
     elif tipo == "empresa":
         html = contenido_acceso_empresa("Café Andino", "ventas@cafeandino.com", "cafe2026", "Expo Negocios 2026", fechas)[1]
     else:

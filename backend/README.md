@@ -135,6 +135,12 @@ y el error queda en el log):
 - **Empresa creada con contraseña** (`POST /empresas`): su correo de acceso y la contraseña
   (plantilla `acceso_empresa.html`).
 
+**Recordatorio un día antes de la feria.** `.\.venv\Scripts\python -m app.recordatorios` envía un correo
+(con la tarjeta y el QR) a los inscritos con correo de las ferias que empiezan mañana, y marca la feria en
+`recordatorioEnviadoEn` para no repetirlo. Hay que programarlo una vez al día, por ejemplo con el Programador
+de tareas de Windows (acción: `backend\.venv\Scripts\python.exe -m app.recordatorios`, iniciar en: `backend`).
+El organizador también puede enviarlo a mano con `POST /ferias/:id/recordatorio`, que devuelve `{ enviados }`.
+
 Los botones de esos correos apuntan a `FRONTEND_URL`. Vista previa: `.\.venv\Scripts\python -m app.correo visitante`
 o `... app.correo empresa`.
 
@@ -150,7 +156,8 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 
 | Método y ruta | Quién | Notas |
 | --- | --- | --- |
-| `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `totalEmpresas` y `totalVisitantes` |
+| `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `recordatorioEnviadoEn`, `totalEmpresas` y `totalVisitantes` |
+| `POST /ferias/:id/recordatorio` | Organizador | Envía ya el recordatorio a los inscritos con correo; devuelve `{ enviados }` (409 si la feria terminó) |
 | `GET /ferias/:id/publica` | Público | La feria con `empresas`: `id`, `nombre`, `rubro`, `stand` y `logo` (sin correo ni teléfono) |
 | `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas }` |
 | `GET /inscripciones?visitanteId=&feriaId=` | Organizador, el propio visitante | Con la `feria` embebida |

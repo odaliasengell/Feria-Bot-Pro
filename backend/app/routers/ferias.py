@@ -15,6 +15,7 @@ from ..schemas import (
     FeriaPublicaOut,
     InscripcionCrear,
     InscripcionOut,
+    RecordatorioOut,
     Sesion,
 )
 from ..security import requiere, solo_propio
@@ -136,6 +137,17 @@ def eliminar(feria_id: str, db: DB):
     db.delete(obtener_feria(db, feria_id))
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/ferias/{feria_id}/recordatorio", response_model=RecordatorioOut, dependencies=[Depends(requiere("organizador"))])
+def enviar_recordatorio_ahora(feria_id: str, db: DB):
+    """Envía ya el recordatorio a los inscritos con correo (aunque se haya enviado antes) y devuelve cuántos."""
+    from ..recordatorios import enviar_recordatorio
+
+    feria = obtener_feria(db, feria_id)
+    if feria.estado == "finalizada":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"«{feria.nombre}» ya terminó.")
+    return RecordatorioOut(enviados=enviar_recordatorio(db, feria))
 
 
 # ---------- Inscripciones ----------

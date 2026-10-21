@@ -34,6 +34,8 @@ class Feria(Base):
     fecha_fin: Mapped[date] = mapped_column(Date, index=True)
     # Interruptor manual del organizador; además la inscripción se cierra sola después de fecha_fin.
     inscripciones_abiertas: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Cuándo se envió el recordatorio a los inscritos (app.recordatorios); NULL = aún no.
+    recordatorio_enviado_en: Mapped[datetime | None] = mapped_column(Fecha)
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
 
     @property

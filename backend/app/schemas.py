@@ -115,6 +115,7 @@ class FeriaOut(FeriaBase):
     # inscripciones_abiertas y la feria aún no termina
     abierta: bool
     estado: EstadoFeria
+    recordatorio_enviado_en: Fecha | None = None
     total_empresas: int = 0
     total_visitantes: int = 0
     creado_en: Fecha
@@ -137,6 +138,10 @@ class EmpresaPublicaOut(CamelModel):
 
 class FeriaPublicaOut(FeriaOut):
     empresas: list[EmpresaPublicaOut] = []
+
+
+class RecordatorioOut(CamelModel):
+    enviados: int
 
 
 class InscripcionCrear(CamelModel):
