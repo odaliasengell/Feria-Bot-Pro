@@ -10,6 +10,7 @@ import RegistroVisitante from './pages/RegistroVisitante';
 import RecuperarPassword from './pages/RecuperarPassword';
 import FichaPublica from './pages/FichaPublica';
 import Legal from './pages/Legal';
+import Perfil from './pages/Perfil';
 import Nosotros from './pages/Nosotros';
 import Ferias from './pages/Ferias';
 import FeriaDetalle from './pages/FeriaDetalle';
@@ -61,12 +62,14 @@ export default function App() {
         <Route path="empresas" element={<OrgEmpresas />} />
         <Route path="visitantes" element={<OrgVisitantes />} />
         <Route path="leads" element={<OrgLeads />} />
+        <Route path="perfil" element={<Perfil />} />
       </Route>
 
       <Route path="/empresa" element={<RequireRole role="empresa"><AppLayout role="empresa" /></RequireRole>}>
         <Route index element={<EmpresaLeads />} />
         <Route path="escanear" element={<EmpresaEscanear />} />
         <Route path="ficha" element={<EmpresaFicha />} />
+        <Route path="perfil" element={<Perfil />} />
       </Route>
 
       <Route path="/visitante" element={<RequireRole role="visitante"><AppLayout role="visitante" /></RequireRole>}>

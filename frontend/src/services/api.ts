@@ -109,6 +109,11 @@ export const authApi = {
   recuperarCambiar: (email: string, role: 'empresa' | 'organizador', codigo: string, password: string) =>
     pedir<AuthRespuesta>('POST', '/auth/recuperar/cambiar', { email, role, codigo, password }),
   yo: () => pedir<Session>('GET', '/auth/me'),
+  /** Organizador o empresa: cambia la contraseña confirmando la actual (204). */
+  cambiarPassword: (passwordActual: string, passwordNueva: string) =>
+    pedir<void>('POST', '/auth/cambiar-password', { passwordActual, passwordNueva }),
+  /** Organizador o empresa: cambia el correo de ingreso confirmando la contraseña. Devuelve una sesión nueva para `login()`. */
+  cambiarCorreo: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/cambiar-correo', { email, password }),
 };
 
 export const feriasApi = {

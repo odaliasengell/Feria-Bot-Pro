@@ -9,6 +9,7 @@ import {
   LogOut,
   ScanLine,
   UserCog,
+  UserRound,
   Store,
   Users,
   type LucideIcon,
@@ -25,11 +26,13 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
     { to: '/organizador/empresas', label: 'Empresas', icon: Building2 },
     { to: '/organizador/visitantes', label: 'Visitantes', icon: Users },
     { to: '/organizador/leads', label: 'Leads', icon: BarChart3 },
+    { to: '/organizador/perfil', label: 'Perfil', icon: UserRound },
   ],
   empresa: [
     { to: '/empresa', label: 'Mis leads', icon: ContactRound, end: true },
     { to: '/empresa/escanear', label: 'Escanear', icon: ScanLine },
     { to: '/empresa/ficha', label: 'Mi ficha', icon: Store },
+    { to: '/empresa/perfil', label: 'Perfil', icon: UserRound },
   ],
   visitante: [
     { to: '/visitante', label: 'Mi tarjeta', icon: IdCard, end: true },
