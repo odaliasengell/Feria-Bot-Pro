@@ -103,6 +103,8 @@ class Inscripcion(Base):
     feria_id: Mapped[str] = mapped_column(ForeignKey("ferias.id", ondelete="CASCADE"))
     visitante_id: Mapped[str] = mapped_column(ForeignKey("visitantes.id", ondelete="CASCADE"), index=True)
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
+    # Entrada a la feria registrada en la puerta (POST /ferias/:id/asistencia); NULL = aún no llegó.
+    asistio_en: Mapped[datetime | None] = mapped_column(Fecha)
 
     feria: Mapped[Feria] = relationship()
     visitante: Mapped[Visitante] = relationship()

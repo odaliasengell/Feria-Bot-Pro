@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import DB
 from ..models import Empresa, Feria, Inscripcion, Lead, VistaFicha
 from ..schemas import (
+    AsistenciaOut,
+    AsistenciaRegistrar,
     EmpresaPublicaOut,
     EstadoFeria,
     FeriaActualizar,
@@ -19,7 +21,7 @@ from ..schemas import (
     Sesion,
 )
 from ..security import requiere, solo_propio
-from ..utils import uid
+from ..utils import ahora, uid
 
 router = APIRouter(tags=["ferias"])
 
@@ -148,6 +150,28 @@ def enviar_recordatorio_ahora(feria_id: str, db: DB):
     if feria.estado == "finalizada":
         raise HTTPException(status.HTTP_409_CONFLICT, f"«{feria.nombre}» ya terminó.")
     return RecordatorioOut(enviados=enviar_recordatorio(db, feria))
+
+
+@router.post("/ferias/{feria_id}/asistencia", response_model=AsistenciaOut, dependencies=[Depends(requiere("organizador"))])
+def registrar_asistencia(feria_id: str, data: AsistenciaRegistrar, db: DB):
+    """Control de acceso: el organizador escanea la tarjeta del visitante en la puerta de la feria.
+
+    Si ya había entrado no cambia la hora y responde `yaRegistrada: true`.
+    """
+    from .visitantes import buscar_por_codigo_o_email
+
+    feria = obtener_feria(db, feria_id)
+    visitante = buscar_por_codigo_o_email(db, data.codigo)
+    if not visitante:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontramos un visitante con ese código.")
+    ins = db.scalar(select(Inscripcion).where(Inscripcion.feria_id == feria.id, Inscripcion.visitante_id == visitante.id))
+    if not ins:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"{visitante.nombre} no está inscrito en «{feria.nombre}».")
+    ya = ins.asistio_en is not None
+    if not ya:
+        ins.asistio_en = ahora()
+        db.commit()
+    return AsistenciaOut(visitante=visitante, asistio_en=ins.asistio_en, ya_registrada=ya)
 
 
 # ---------- Inscripciones ----------

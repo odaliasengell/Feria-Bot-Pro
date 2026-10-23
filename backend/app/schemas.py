@@ -155,7 +155,13 @@ class InscripcionOut(CamelModel):
     feria_id: str
     visitante_id: str
     creado_en: Fecha
+    # Hora de entrada registrada en la puerta; null si aún no llegó.
+    asistio_en: Fecha | None = None
     feria: FeriaOut | None = None
+
+
+class AsistenciaRegistrar(CamelModel):
+    codigo: str = Field(min_length=1, max_length=150, description="Código de la tarjeta (FB-XXXXXX) o contenido del QR")
 
 
 # ---------- Empresas ----------
@@ -263,6 +269,13 @@ class VisitanteOut(CamelModel):
     @classmethod
     def _sin_email(cls, v: str | None) -> str:
         return v or ""
+
+
+class AsistenciaOut(CamelModel):
+    visitante: VisitanteOut
+    asistio_en: Fecha
+    # true si ya había entrado antes: asistioEn es la hora de esa primera entrada.
+    ya_registrada: bool
 
 
 # ---------- Leads ----------

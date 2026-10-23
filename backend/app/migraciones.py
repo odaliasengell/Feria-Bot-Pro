@@ -70,7 +70,16 @@ def _agregar_recordatorio(engine: Engine) -> None:
             )
 
 
+def _agregar_asistencia(engine: Engine) -> None:
+    """Hora de entrada del visitante a la feria, registrada en la puerta."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("inscripciones")}
+    if "asistio_en" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE inscripciones ADD COLUMN asistio_en DATETIME(6) NULL AFTER creado_en"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
     _agregar_recordatorio(engine)
+    _agregar_asistencia(engine)
