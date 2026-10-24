@@ -1,14 +1,38 @@
+import { useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Building2, MapPin, Printer } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { Building2, Download, MapPin, Printer } from 'lucide-react';
 import type { Empresa, Feria, Visitante } from '../types';
 import { qrStand, qrVisitante, rangoFechas } from '../lib/utils';
 import { Avatar } from './ui';
 
 /** Tarjeta de credencial del visitante con su QR personal para una feria. */
 export function TarjetaVisitante({ visitante, feria, imprimible = true }: { visitante: Visitante; feria?: Feria; imprimible?: boolean }) {
+  const tarjetaRef = useRef<HTMLElement>(null);
+  const [descargando, setDescargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** Guarda la tarjeta como PNG (al doble de resolución para que el QR se lea bien al imprimirlo). */
+  async function descargar() {
+    if (!tarjetaRef.current) return;
+    setDescargando(true);
+    setError(null);
+    try {
+      const dataUrl = await toPng(tarjetaRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `tarjeta-${visitante.codigo}.png`;
+      a.click();
+    } catch {
+      setError('No se pudo generar la imagen. Intenta de nuevo o usa Imprimir.');
+    } finally {
+      setDescargando(false);
+    }
+  }
+
   return (
     <div className="credencial-wrap">
-      <article className="credencial printable">
+      <article ref={tarjetaRef} className="credencial printable">
         <div className="credencial-top">
           <span className="brand-mini">FeriaBot Pro</span>
           <span className="credencial-tag">VISITANTE</span>
@@ -39,10 +63,16 @@ export function TarjetaVisitante({ visitante, feria, imprimible = true }: { visi
         <p className="credencial-foot">Presenta este código en los stands</p>
       </article>
       {imprimible && (
-        <button className="btn btn-outline no-print" onClick={() => window.print()}>
-          <Printer size={16} /> Imprimir tarjeta
-        </button>
+        <div className="row-gap no-print credencial-acciones">
+          <button type="button" className="btn btn-outline" onClick={() => window.print()}>
+            <Printer size={16} /> Imprimir tarjeta
+          </button>
+          <button type="button" className="btn btn-outline" onClick={descargar} disabled={descargando}>
+            <Download size={16} /> {descargando ? 'Generando…' : 'Descargar'}
+          </button>
+        </div>
       )}
+      {error && <p className="small no-print credencial-error">{error}</p>}
     </div>
   );
 }

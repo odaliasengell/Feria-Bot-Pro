@@ -333,6 +333,8 @@ textarea.input { resize: vertical; min-height: 44px; }
 
 /* ---------- credenciales y carteles QR (superficie de marca) ---------- */
 .credencial-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.credencial-acciones { justify-content: center; }
+.credencial-error { color: var(--crimson); text-align: center; }
 .credencial, .cartel {
   position: relative; width: 300px; max-width: 100%; background: var(--paper); border-radius: var(--r-xl); overflow: hidden;
   text-align: center; border: 1px solid var(--line); box-shadow: var(--shadow-md); padding: 20px 0;
