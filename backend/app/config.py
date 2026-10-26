@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     mail_from_name: str = "FeriaBot Pro"
     codigo_minutos: int = 10
+    # Diferencia con UTC de la hora local (Ecuador: -5, sin horario de verano). Las fechas se guardan en UTC;
+    # las estadísticas agrupan por día y hora locales.
+    zona_horaria_utc: int = -5
+
     # Dirección del frontend, para los enlaces de los correos (botón "Entrar").
     frontend_url: str = "http://localhost:5173"
 

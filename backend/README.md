@@ -157,6 +157,7 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | Método y ruta | Quién | Notas |
 | --- | --- | --- |
 | `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `recordatorioEnviadoEn`, `totalEmpresas` y `totalVisitantes` |
+| `GET /ferias/:id/estadisticas` | Organizador | `{ totalInscritos, asistentes, inscritosPorDia: [{ fecha, total }], escaneosPorHora: [{ hora, total }], rankingEmpresas: [{ empresaId, nombre, leads, vistas }], ciudades: [{ ciudad, total }] }`. Días y horas en hora local (`ZONA_HORARIA_UTC`, por defecto -5), con los huecos en 0 |
 | `POST /ferias/:id/recordatorio` | Organizador | Envía ya el recordatorio a los inscritos con correo; devuelve `{ enviados }` (409 si la feria terminó) |
 | `GET /ferias/:id/publica` | Público | La feria con `empresas`: `id`, `nombre`, `rubro`, `stand` y `logo` (sin correo ni teléfono) |
 | `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas }` |

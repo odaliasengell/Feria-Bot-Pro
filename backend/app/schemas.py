@@ -140,6 +140,37 @@ class FeriaPublicaOut(FeriaOut):
     empresas: list[EmpresaPublicaOut] = []
 
 
+class InscritosDia(CamelModel):
+    fecha: date
+    total: int
+
+
+class EscaneosHora(CamelModel):
+    hora: int = Field(ge=0, le=23)
+    total: int
+
+
+class EmpresaRanking(CamelModel):
+    empresa_id: str
+    nombre: str
+    leads: int
+    vistas: int
+
+
+class CiudadTotal(CamelModel):
+    ciudad: str
+    total: int
+
+
+class EstadisticasOut(CamelModel):
+    total_inscritos: int
+    asistentes: int
+    inscritos_por_dia: list[InscritosDia]
+    escaneos_por_hora: list[EscaneosHora]
+    ranking_empresas: list[EmpresaRanking]
+    ciudades: list[CiudadTotal]
+
+
 class RecordatorioOut(CamelModel):
     enviados: int
 

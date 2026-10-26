@@ -10,6 +10,7 @@ from ..schemas import (
     AsistenciaOut,
     AsistenciaRegistrar,
     EmpresaPublicaOut,
+    EstadisticasOut,
     EstadoFeria,
     FeriaActualizar,
     FeriaBase,
@@ -172,6 +173,14 @@ def registrar_asistencia(feria_id: str, data: AsistenciaRegistrar, db: DB):
         ins.asistio_en = ahora()
         db.commit()
     return AsistenciaOut(visitante=visitante, asistio_en=ins.asistio_en, ya_registrada=ya)
+
+
+@router.get("/ferias/{feria_id}/estadisticas", response_model=EstadisticasOut, dependencies=[Depends(requiere("organizador"))])
+def estadisticas(feria_id: str, db: DB):
+    """Cifras de la feria para el resumen del organizador. Días y horas en hora local (ZONA_HORARIA_UTC)."""
+    from ..estadisticas import calcular
+
+    return calcular(db, obtener_feria(db, feria_id))
 
 
 # ---------- Inscripciones ----------
