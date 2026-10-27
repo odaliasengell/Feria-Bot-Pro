@@ -3,7 +3,7 @@ import { Download, IdCard, Plus, Search, Trash2, Users } from 'lucide-react';
 import type { Feria, Visitante } from '../../types';
 import { inscripcionesApi, leadsApi, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
-import { descargarCSV, fecha, normalizar } from '../../lib/utils';
+import { descargarCSV, fecha, fechaHora, normalizar } from '../../lib/utils';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
 import { TarjetaVisitante } from '../../components/Credenciales';
 import { ConFeria } from '../../components/FeriaSelector';
@@ -16,14 +16,24 @@ export default function OrgVisitantes() {
 
 function VisitantesFeria({ feria }: { feria: Feria }) {
   const { data, cargando, recargar } = useAsync(
-    () => Promise.all([visitantesApi.listar(feria.id), leadsApi.listar({ feriaId: feria.id })]),
+    () =>
+      Promise.all([
+        visitantesApi.listar(feria.id),
+        leadsApi.listar({ feriaId: feria.id }),
+        inscripcionesApi.listar({ feriaId: feria.id }),
+      ]),
     [feria.id],
   );
   const [q, setQ] = useState('');
   const [nuevo, setNuevo] = useState(false);
   const [tarjeta, setTarjeta] = useState<Visitante | null>(null);
 
-  const [visitantes, leads] = data ?? [[], []];
+  const [visitantes, leads, inscripciones] = data ?? [[], [], []];
+  /** Hora de entrada a la feria por visitante (control de acceso). */
+  const asistencia = useMemo(
+    () => new Map(inscripciones.filter((i) => i.asistioEn).map((i) => [i.visitanteId, i.asistioEn!])),
+    [inscripciones],
+  );
   const filtrados = useMemo(() => {
     const nq = normalizar(q);
     return visitantes.filter((v) => !nq || normalizar([v.nombre, v.email, v.codigo, v.empresa, v.ciudad, v.telefono].join(' ')).includes(nq));
@@ -37,8 +47,11 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
 
   function exportar() {
     descargarCSV(`visitantes-${feria.nombre}.csv`, [
-      ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro'],
-      ...filtrados.map((v) => [v.codigo, v.nombre, v.telefono, v.email, v.empresa, v.ciudad, fecha(v.creadoEn)]),
+      ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro', 'Asistió'],
+      ...filtrados.map((v) => {
+        const entrada = asistencia.get(v.id);
+        return [v.codigo, v.nombre, v.telefono, v.email, v.empresa, v.ciudad, fecha(v.creadoEn), entrada ? fechaHora(entrada) : 'No'];
+      }),
     ]);
   }
 
@@ -79,6 +92,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
                     <th>Teléfono</th>
                     <th>Correo</th>
                     <th>Ciudad</th>
+                    <th>Asistió</th>
                     <th className="num">Stands</th>
                     <th />
                   </tr>
@@ -101,6 +115,15 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
                       <td className="nowrap">{v.telefono}</td>
                       <td>{v.email}</td>
                       <td>{v.ciudad}</td>
+                      <td className="nowrap">
+                        {asistencia.has(v.id) ? (
+                          <span className="badge tone-teal" title={`Entró: ${fechaHora(asistencia.get(v.id)!)}`}>
+                            Sí · {fechaHora(asistencia.get(v.id)!)}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                       <td className="num">{leads.filter((l) => l.visitanteId === v.id).length}</td>
                       <td>
                         <div className="row-actions">
@@ -119,7 +142,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
             </div>
           )}
           <div className="table-foot muted small">
-            {filtrados.length} de {visitantes.length} visitantes inscritos
+            {filtrados.length} de {visitantes.length} visitantes inscritos · {asistencia.size} asistieron
           </div>
         </div>
       )}

@@ -19,6 +19,7 @@ import OrgResumen from './pages/organizador/OrgResumen';
 import OrgEmpresas from './pages/organizador/OrgEmpresas';
 import OrgVisitantes from './pages/organizador/OrgVisitantes';
 import OrgLeads from './pages/organizador/OrgLeads';
+import OrgAcceso from './pages/organizador/OrgAcceso';
 import EmpresaLeads from './pages/empresa/EmpresaLeads';
 import EmpresaEscanear from './pages/empresa/EmpresaEscanear';
 import EmpresaFicha from './pages/empresa/EmpresaFicha';
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="ferias" element={<OrgFerias />} />
         <Route path="empresas" element={<OrgEmpresas />} />
         <Route path="visitantes" element={<OrgVisitantes />} />
+        <Route path="acceso" element={<OrgAcceso />} />
         <Route path="leads" element={<OrgLeads />} />
         <Route path="perfil" element={<Perfil />} />
       </Route>

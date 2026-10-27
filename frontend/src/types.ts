@@ -41,7 +41,17 @@ export interface Inscripcion {
   feriaId: string;
   visitanteId: string;
   creadoEn: string;
+  /** Hora en que entró a la feria (control de acceso); null si aún no asiste. */
+  asistioEn?: string | null;
   feria?: Feria;
+}
+
+/** POST /ferias/:id/asistencia */
+export interface AsistenciaRespuesta {
+  visitante: Visitante;
+  asistioEn: string;
+  /** true si ya había entrado: `asistioEn` es la hora de esa primera entrada. */
+  yaRegistrada: boolean;
 }
 
 export interface Empresa {

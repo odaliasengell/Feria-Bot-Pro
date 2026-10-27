@@ -5,6 +5,7 @@
  * El token de sesión se envía como `Authorization: Bearer <token>`.
  */
 import type {
+  AsistenciaRespuesta,
   AuthRespuesta,
   Calificacion,
   DocumentoLegal,
@@ -132,6 +133,10 @@ export const feriasApi = {
   crear: (data: NuevaFeria) => pedir<Feria>('POST', '/ferias', data),
 
   actualizar: (id: string, cambios: Partial<NuevaFeria>) => pedir<Feria>('PATCH', `/ferias/${encodeURIComponent(id)}`, cambios),
+
+  /** Control de acceso: registra la entrada del visitante (código de la tarjeta o contenido del QR). */
+  registrarAsistencia: (feriaId: string, codigo: string) =>
+    pedir<AsistenciaRespuesta>('POST', `/ferias/${encodeURIComponent(feriaId)}/asistencia`, { codigo }),
 
   /** Borra también sus empresas, leads e inscripciones. Las cuentas de visitante se conservan. */
   eliminar: (id: string) => pedir<void>('DELETE', `/ferias/${encodeURIComponent(id)}`),
