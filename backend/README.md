@@ -63,6 +63,8 @@ tiene sus propias **empresas** (`empresas.feria_id`) y, por lo tanto, sus leads 
   inscribirse a otras (`POST /inscripciones`).
 - Una feria acepta inscripciones (`abierta`) si el interruptor está encendido y aún no pasó `fechaFin`.
   El organizador puede inscribir aunque esté cerrada.
+- `aforo` es el máximo de inscritos (`null` = sin límite). Al llegar, `llena` es `true` y el registro y
+  `POST /inscripciones` responden 409 "La feria está llena"; el organizador puede pasar el límite.
 - Una empresa solo puede escanear (y guardar leads de) visitantes inscritos en su feria; el visitante solo
   guarda en su historial fichas de ferias en las que está inscrito. Si no, la API responde 403.
 - Al borrar una feria se borran sus empresas, leads, vistas e inscripciones; las cuentas de visitante quedan.
@@ -156,11 +158,12 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 
 | Método y ruta | Quién | Notas |
 | --- | --- | --- |
-| `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `recordatorioEnviadoEn`, `totalEmpresas` y `totalVisitantes` |
+| `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `aforo`, `llena`, `recordatorioEnviadoEn`, `totalEmpresas` y `totalVisitantes` |
 | `GET /ferias/:id/estadisticas` | Organizador | `{ totalInscritos, asistentes, inscritosPorDia: [{ fecha, total }], escaneosPorHora: [{ hora, total }], rankingEmpresas: [{ empresaId, nombre, leads, vistas }], ciudades: [{ ciudad, total }] }`. Días y horas en hora local (`ZONA_HORARIA_UTC`, por defecto -5), con los huecos en 0 |
 | `POST /ferias/:id/recordatorio` | Organizador | Envía ya el recordatorio a los inscritos con correo; devuelve `{ enviados }` (409 si la feria terminó) |
 | `GET /ferias/:id/publica` | Público | La feria con `empresas`: `id`, `nombre`, `rubro`, `stand` y `logo` (sin correo ni teléfono) |
-| `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas }` |
+| `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas, aforo }`; en el PATCH, `aforo: null` quita el límite |
+| `POST /ferias/:id/duplicar` | Organizador | `{ nombre, fechaInicio, fechaFin }`: nueva feria con la descripción, el lugar y el aforo de la original (las empresas no se copian porque su correo es único); 201 |
 | `GET /inscripciones?visitanteId=&feriaId=` | Organizador, el propio visitante | Con la `feria` embebida y `asistioEn` (hora de entrada o null) |
 | `POST /ferias/:id/asistencia` | Organizador | Control de acceso en la puerta: `{ codigo }` (código o QR) → `{ visitante, asistioEn, yaRegistrada }`. 404 si el código no existe, 403 si no está inscrito. Si ya entró, conserva la primera hora |
 | `POST /inscripciones` | Visitante, organizador | `{ feriaId }` (el organizador agrega `visitanteId`); si ya estaba inscrito devuelve la misma |

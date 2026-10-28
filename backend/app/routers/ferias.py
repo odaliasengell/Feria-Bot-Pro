@@ -14,6 +14,7 @@ from ..schemas import (
     EstadoFeria,
     FeriaActualizar,
     FeriaBase,
+    FeriaDuplicar,
     FeriaOut,
     FeriaPublicaOut,
     InscripcionCrear,
@@ -49,8 +50,24 @@ def exigir_inscripcion(db: Session, feria: Feria, visitante_id: str, mensaje: st
         raise HTTPException(status.HTTP_403_FORBIDDEN, mensaje or f"El visitante no está inscrito en «{feria.nombre}».")
 
 
+FERIA_LLENA = "La feria está llena"
+
+
+def total_inscritos(db: Session, feria_id: str) -> int:
+    return db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.feria_id == feria_id)) or 0
+
+
+def exigir_cupo(db: Session, feria: Feria) -> None:
+    """409 si la feria llegó a su aforo (sin aforo no hay límite)."""
+    if feria.aforo is not None and total_inscritos(db, feria.id) >= feria.aforo:
+        raise HTTPException(status.HTTP_409_CONFLICT, FERIA_LLENA)
+
+
 def inscribir(db: Session, feria: Feria, visitante_id: str, *, forzar: bool = False) -> Inscripcion:
-    """Inscribe al visitante (si ya lo estaba devuelve la inscripción). `forzar` ignora el cierre de inscripciones."""
+    """Inscribe al visitante (si ya lo estaba devuelve la inscripción).
+
+    `forzar` (el organizador) ignora el cierre de inscripciones y el aforo.
+    """
     actual = db.scalar(
         select(Inscripcion).where(Inscripcion.feria_id == feria.id, Inscripcion.visitante_id == visitante_id)
     )
@@ -58,6 +75,8 @@ def inscribir(db: Session, feria: Feria, visitante_id: str, *, forzar: bool = Fa
         return actual
     if not forzar and not feria.abierta:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Las inscripciones para «{feria.nombre}» están cerradas.")
+    if not forzar:
+        exigir_cupo(db, feria)
     ins = Inscripcion(id=uid("ins-"), feria_id=feria.id, visitante_id=visitante_id)
     db.add(ins)
     return ins
@@ -74,7 +93,13 @@ def _con_totales(db: Session, ferias: list[Feria]) -> list[FeriaOut]:
         ).all()
     )
     return [
-        FeriaOut.model_validate(f).model_copy(update={"total_empresas": emp.get(f.id, 0), "total_visitantes": vis.get(f.id, 0)})
+        FeriaOut.model_validate(f).model_copy(
+            update={
+                "total_empresas": emp.get(f.id, 0),
+                "total_visitantes": vis.get(f.id, 0),
+                "llena": f.aforo is not None and vis.get(f.id, 0) >= f.aforo,
+            }
+        )
         for f in ferias
     ]
 
@@ -126,12 +151,40 @@ def crear(data: FeriaBase, db: DB):
 def actualizar(feria_id: str, cambios: FeriaActualizar, db: DB):
     feria = obtener_feria(db, feria_id)
     for campo, valor in cambios.model_dump(exclude_unset=True).items():
-        if valor is not None:
+        # aforo: null quita el límite; en el resto de campos un null se ignora.
+        if valor is not None or campo == "aforo":
             setattr(feria, campo, valor)
     if feria.fecha_fin < feria.fecha_inicio:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "La fecha de fin no puede ser anterior a la de inicio")
     db.commit()
     return _con_totales(db, [feria])[0]
+
+
+@router.post(
+    "/ferias/{feria_id}/duplicar",
+    response_model=FeriaOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(requiere("organizador"))],
+)
+def duplicar(feria_id: str, data: FeriaDuplicar, db: DB):
+    """Nueva edición de una feria: copia descripción, lugar y aforo con el nombre y las fechas nuevas.
+
+    Las empresas no se copian: cada una entra con su correo, que es único en todo el sistema.
+    """
+    origen = obtener_feria(db, feria_id)
+    nueva = Feria(
+        id=uid("feria-"),
+        nombre=data.nombre.strip(),
+        descripcion=origen.descripcion,
+        lugar=origen.lugar,
+        aforo=origen.aforo,
+        fecha_inicio=data.fecha_inicio,
+        fecha_fin=data.fecha_fin,
+        inscripciones_abiertas=True,
+    )
+    db.add(nueva)
+    db.commit()
+    return _con_totales(db, [nueva])[0]
 
 
 @router.delete("/ferias/{feria_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])

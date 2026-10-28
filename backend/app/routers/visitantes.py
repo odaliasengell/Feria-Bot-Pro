@@ -12,7 +12,7 @@ from ..schemas import CambioCorreo, CambioCorreoEnviar, Sesion, VisitanteActuali
 from ..security import requiere, sesion_opcional, solo_propio
 from ..utils import ahora, generar_codigo, leer_codigo_visitante, uid
 from ..verificacion import crear_y_enviar, verificar
-from .ferias import exigir_inscripcion, inscribir, obtener_feria
+from .ferias import exigir_cupo, exigir_inscripcion, inscribir, obtener_feria
 
 router = APIRouter(prefix="/visitantes", tags=["visitantes"])
 
@@ -166,6 +166,9 @@ def crear(
     feria = obtener_feria(db, data.feria_id)
     if not es_org and not feria.abierta:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Las inscripciones para «{feria.nombre}» están cerradas.")
+    if not es_org:
+        # Antes de crear la cuenta y de gastar el código de verificación.
+        exigir_cupo(db, feria)
 
     email = data.email or None
     existente = db.scalar(select(Visitante).where(Visitante.email == email)) if email else None

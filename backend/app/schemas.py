@@ -93,6 +93,8 @@ class FeriaBase(CamelModel):
     fecha_inicio: date
     fecha_fin: date
     inscripciones_abiertas: bool = True
+    # Máximo de inscritos; null = sin límite.
+    aforo: int | None = Field(default=None, ge=1, le=1_000_000)
 
     @model_validator(mode="after")
     def _fechas(self):
@@ -108,6 +110,20 @@ class FeriaActualizar(CamelModel):
     fecha_inicio: date | None = None
     fecha_fin: date | None = None
     inscripciones_abiertas: bool | None = None
+    # Enviar null quita el límite.
+    aforo: int | None = Field(default=None, ge=1, le=1_000_000)
+
+
+class FeriaDuplicar(CamelModel):
+    nombre: str = Field(min_length=1, max_length=150)
+    fecha_inicio: date
+    fecha_fin: date
+
+    @model_validator(mode="after")
+    def _fechas(self):
+        if self.fecha_fin < self.fecha_inicio:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
+        return self
 
 
 class FeriaOut(FeriaBase):
@@ -118,6 +134,8 @@ class FeriaOut(FeriaBase):
     recordatorio_enviado_en: Fecha | None = None
     total_empresas: int = 0
     total_visitantes: int = 0
+    # Llegó al aforo: no se aceptan más inscripciones (salvo las del organizador).
+    llena: bool = False
     creado_en: Fecha
 
     # Al leer de la base no se vuelve a validar el orden de las fechas.

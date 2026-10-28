@@ -78,8 +78,17 @@ def _agregar_asistencia(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE inscripciones ADD COLUMN asistio_en DATETIME(6) NULL AFTER creado_en"))
 
 
+def _agregar_aforo(engine: Engine) -> None:
+    """Máximo de inscritos por feria (NULL = sin límite)."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("ferias")}
+    if "aforo" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE ferias ADD COLUMN aforo INT NULL AFTER inscripciones_abiertas"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
     _agregar_recordatorio(engine)
     _agregar_asistencia(engine)
+    _agregar_aforo(engine)

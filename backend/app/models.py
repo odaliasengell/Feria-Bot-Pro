@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, Enum, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.mysql import DATETIME, LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +34,8 @@ class Feria(Base):
     fecha_fin: Mapped[date] = mapped_column(Date, index=True)
     # Interruptor manual del organizador; además la inscripción se cierra sola después de fecha_fin.
     inscripciones_abiertas: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Máximo de inscritos; NULL = sin límite. El organizador puede inscribir aunque esté llena.
+    aforo: Mapped[int | None] = mapped_column(Integer)
     # Cuándo se envió el recordatorio a los inscritos (app.recordatorios); NULL = aún no.
     recordatorio_enviado_en: Mapped[datetime | None] = mapped_column(Fecha)
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
