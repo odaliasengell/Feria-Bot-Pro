@@ -11,6 +11,7 @@ import type {
   DocumentoLegal,
   Empresa,
   EstadoFeria,
+  EstadisticasFeria,
   Feria,
   FeriaPublica,
   Inscripcion,
@@ -133,6 +134,9 @@ export const feriasApi = {
   crear: (data: NuevaFeria) => pedir<Feria>('POST', '/ferias', data),
 
   actualizar: (id: string, cambios: Partial<NuevaFeria>) => pedir<Feria>('PATCH', `/ferias/${encodeURIComponent(id)}`, cambios),
+
+  /** Organizador: cifras de la feria para los gráficos del resumen. */
+  estadisticas: (feriaId: string) => pedir<EstadisticasFeria>('GET', `/ferias/${encodeURIComponent(feriaId)}/estadisticas`),
 
   /** Control de acceso: registra la entrada del visitante (código de la tarjeta o contenido del QR). */
   registrarAsistencia: (feriaId: string, codigo: string) =>

@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Building2, CalendarDays, ContactRound, Eye, RotateCcw, Users } from 'lucide-react';
 import type { Feria } from '../../types';
-import { demoApi, empresasApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
+import { demoApi, empresasApi, feriasApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
 import { useFeria } from '../../context/FeriaContext';
 import { ConFeria } from '../../components/FeriaSelector';
 import { Avatar, Card, EmptyState, Loader, PageHeader, StatCard } from '../../components/ui';
 import DistribucionCalificaciones from '../../components/DistribucionCalificaciones';
+import GraficosFeria from '../../components/GraficosFeria';
 
 export default function OrgResumen() {
   const { ferias, cargando, recargar } = useFeria();
@@ -41,13 +42,14 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
         visitantesApi.listar(feria.id),
         leadsApi.listar({ feriaId: feria.id }),
         vistasApi.listar({ feriaId: feria.id }),
+        feriasApi.estadisticas(feria.id),
       ]),
     [feria.id],
   );
 
   if (cargando && !data) return <Loader />;
   if (!data) return null;
-  const [empresas, visitantes, leads, vistas] = data;
+  const [empresas, visitantes, leads, vistas, stats] = data;
 
   const ranking = empresas
     .map((e) => ({ e, n: leads.filter((l) => l.empresaId === e.id).length, v: vistas.filter((x) => x.empresaId === e.id).length }))
@@ -77,6 +79,8 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
         <StatCard label="Leads generados" value={leads.length} icon={<ContactRound />} tone="orange" />
         <StatCard label="Fichas consultadas" value={vistas.length} icon={<Eye />} tone="navy" />
       </div>
+
+      <GraficosFeria stats={stats} />
 
       <div className="grid-2">
         <Card

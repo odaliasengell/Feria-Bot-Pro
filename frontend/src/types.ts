@@ -141,3 +141,16 @@ export interface DocumentoLegal {
   responsable: { nombre: string; ruc: string; direccion: string; email: string; telefono: string };
   secciones: { titulo: string; parrafos: string[]; lista: string[] }[];
 }
+
+/** GET /ferias/:id/estadisticas (días y horas en hora local del servidor). */
+export interface EstadisticasFeria {
+  totalInscritos: number;
+  asistentes: number;
+  /** Un punto por día, del primero al último con inscripciones (días sin inscripciones en 0). */
+  inscritosPorDia: { fecha: string; total: number }[];
+  /** Leads por hora del día (0–23), de la primera a la última hora con escaneos. */
+  escaneosPorHora: { hora: number; total: number }[];
+  rankingEmpresas: { empresaId: string; nombre: string; leads: number; vistas: number }[];
+  /** Ordenadas de más a menos visitantes; «Sin ciudad» al final. */
+  ciudades: { ciudad: string; total: number }[];
+}
