@@ -86,9 +86,18 @@ def _agregar_aforo(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE ferias ADD COLUMN aforo INT NULL AFTER inscripciones_abiertas"))
 
 
+def _agregar_registrado_por(engine: Engine) -> None:
+    """Quién escaneó al visitante (la tabla usuarios_empresa la crea create_all)."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("leads")}
+    if "registrado_por" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE leads ADD COLUMN registrado_por VARCHAR(150) NULL AFTER nota"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
     _agregar_recordatorio(engine)
     _agregar_asistencia(engine)
     _agregar_aforo(engine)
+    _agregar_registrado_por(engine)

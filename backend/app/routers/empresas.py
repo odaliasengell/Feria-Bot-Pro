@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from ..correo import enviar_acceso_empresa, enviar_sin_fallar, rango_fechas
 from ..database import DB
-from ..models import Empresa
-from ..schemas import EmpresaActualizar, EmpresaCrear, EmpresaOut, Sesion
+from ..models import Empresa, UsuarioEmpresa
+from ..schemas import EmpresaActualizar, EmpresaCrear, EmpresaOut, Sesion, UsuarioEmpresaCrear, UsuarioEmpresaOut
 from ..security import hash_password, requiere, solo_propio
 from ..utils import uid
 from .ferias import obtener_feria
@@ -25,10 +25,16 @@ def obtener_empresa(db: Session, empresa_id: str) -> Empresa:
     return empresa
 
 
+def correo_libre(db: Session, email: str, *, excepto_empresa: str | None = None, excepto_usuario: str | None = None) -> None:
+    """El login de empresa busca el correo en empresas y en vendedores: no puede repetirse en ninguna de las dos."""
+    empresa = db.scalar(select(Empresa.id).where(Empresa.email == email))
+    usuario = db.scalar(select(UsuarioEmpresa.id).where(UsuarioEmpresa.email == email))
+    if (empresa and empresa != excepto_empresa) or (usuario and usuario != excepto_usuario):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese correo.")
+
+
 def _validar_email_libre(db: Session, email: str, excepto: str | None = None) -> None:
-    otro = db.scalar(select(Empresa.id).where(Empresa.email == email))
-    if otro and otro != excepto:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una empresa con ese correo.")
+    correo_libre(db, email, excepto_empresa=excepto)
 
 
 @router.get("", response_model=list[EmpresaOut])
@@ -91,6 +97,59 @@ def actualizar(
 
     db.commit()
     return empresa
+
+
+# ---------- Equipo de la empresa (vendedores) ----------
+
+
+def _administra_equipo(sesion: Sesion, empresa_id: str) -> None:
+    """El organizador o la cuenta principal de la empresa; un vendedor no administra el equipo."""
+    solo_propio(sesion, "empresa", empresa_id)
+    if sesion.role == "empresa" and sesion.usuario_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo la cuenta principal de la empresa administra el equipo.")
+
+
+SesionEquipo = Annotated[Sesion, Depends(requiere("organizador", "empresa"))]
+
+
+@router.get("/{empresa_id}/usuarios", response_model=list[UsuarioEmpresaOut])
+def listar_usuarios(empresa_id: str, db: DB, sesion: SesionEquipo):
+    _administra_equipo(sesion, empresa_id)
+    obtener_empresa(db, empresa_id)
+    return db.scalars(
+        select(UsuarioEmpresa).where(UsuarioEmpresa.empresa_id == empresa_id).order_by(UsuarioEmpresa.nombre)
+    ).all()
+
+
+@router.post("/{empresa_id}/usuarios", response_model=UsuarioEmpresaOut, status_code=status.HTTP_201_CREATED)
+def crear_usuario(empresa_id: str, data: UsuarioEmpresaCrear, db: DB, sesion: SesionEquipo):
+    """Agrega un vendedor que entra con su correo y contraseña por POST /auth/empresa."""
+    _administra_equipo(sesion, empresa_id)
+    obtener_empresa(db, empresa_id)
+    email = data.email.lower()
+    correo_libre(db, email)
+    usuario = UsuarioEmpresa(
+        id=uid("usr-"),
+        empresa_id=empresa_id,
+        nombre=data.nombre.strip(),
+        email=email,
+        password_hash=hash_password(data.password),
+    )
+    db.add(usuario)
+    db.commit()
+    return usuario
+
+
+@router.delete("/{empresa_id}/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_usuario(empresa_id: str, usuario_id: str, db: DB, sesion: SesionEquipo):
+    """Quita al vendedor. Sus leads se conservan con su nombre en registradoPor."""
+    _administra_equipo(sesion, empresa_id)
+    usuario = db.get(UsuarioEmpresa, usuario_id)
+    if not usuario or usuario.empresa_id != empresa_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado")
+    db.delete(usuario)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{empresa_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])

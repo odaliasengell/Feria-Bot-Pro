@@ -26,6 +26,8 @@ def crear_token(sesion: Sesion) -> str:
         "sub": sesion.ref_id,
         "role": sesion.role,
         "nombre": sesion.nombre,
+        "uid": sesion.usuario_id,
+        "unombre": sesion.usuario_nombre,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=ALGORITMO)
@@ -38,7 +40,13 @@ def sesion_opcional(
         return None
     try:
         p = jwt.decode(cred.credentials, settings.jwt_secret, algorithms=[ALGORITMO])
-        return Sesion(role=p["role"], ref_id=p.get("sub"), nombre=p.get("nombre", ""))
+        return Sesion(
+            role=p["role"],
+            ref_id=p.get("sub"),
+            nombre=p.get("nombre", ""),
+            usuario_id=p.get("uid"),
+            usuario_nombre=p.get("unombre"),
+        )
     except (jwt.PyJWTError, KeyError, ValueError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida o vencida. Vuelve a ingresar.")
 

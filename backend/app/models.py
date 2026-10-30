@@ -77,6 +77,21 @@ class Empresa(Base):
     feria: Mapped[Feria] = relationship()
 
 
+class UsuarioEmpresa(Base):
+    """Vendedor de una empresa con su propio acceso al panel (la sesión sigue siendo de la empresa)."""
+
+    __tablename__ = "usuarios_empresa"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    empresa_id: Mapped[str] = mapped_column(ForeignKey("empresas.id", ondelete="CASCADE"), index=True)
+    nombre: Mapped[str] = mapped_column(String(150))
+    email: Mapped[str] = mapped_column(String(150), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
+
+    empresa: Mapped[Empresa] = relationship()
+
+
 class Visitante(Base):
     __tablename__ = "visitantes"
 
@@ -138,6 +153,8 @@ class Lead(Base):
     visitante_id: Mapped[str] = mapped_column(ForeignKey("visitantes.id", ondelete="CASCADE"), index=True)
     calificacion: Mapped[str] = mapped_column(Enum(*CALIFICACIONES, name="calificacion"))
     nota: Mapped[str] = mapped_column(Text)
+    # Quién escaneó al visitante: el vendedor, o la empresa / el organizador si fue su cuenta principal.
+    registrado_por: Mapped[str | None] = mapped_column(String(150))
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
     actualizado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
 

@@ -77,7 +77,9 @@ def guardar(
         lead.nota = data.nota
         lead.actualizado_en = t
     else:
-        lead = Lead(id=uid("lead-"), **data.model_dump(), creado_en=t, actualizado_en=t)
+        # Quien lo escanea primero: el vendedor, o la empresa / la organización si fue su cuenta principal.
+        registrado_por = sesion.usuario_nombre or (empresa.nombre if sesion.role == "empresa" else "Organización")
+        lead = Lead(id=uid("lead-"), **data.model_dump(), registrado_por=registrado_por, creado_en=t, actualizado_en=t)
         db.add(lead)
     db.commit()
     return lead

@@ -32,6 +32,9 @@ class Sesion(CamelModel):
     role: Role
     ref_id: str | None = None
     nombre: str
+    # Solo cuando entra un vendedor de la empresa: ref_id sigue siendo la empresa y nombre, el de la empresa.
+    usuario_id: str | None = None
+    usuario_nombre: str | None = None
 
 
 class LoginPassword(CamelModel):
@@ -257,6 +260,20 @@ class EmpresaOut(EmpresaBase):
     creado_en: Fecha
 
 
+class UsuarioEmpresaCrear(CamelModel):
+    nombre: str = Field(min_length=1, max_length=150)
+    email: EmailStr = Field(max_length=150)
+    password: Password
+
+
+class UsuarioEmpresaOut(CamelModel):
+    id: str
+    empresa_id: str
+    nombre: str
+    email: str
+    creado_en: Fecha
+
+
 # ---------- Visitantes ----------
 
 
@@ -343,6 +360,8 @@ class LeadOut(CamelModel):
     visitante_id: str
     calificacion: Calificacion
     nota: str
+    # Nombre de quien escaneó (null en los leads anteriores a esta función).
+    registrado_por: str | None = None
     creado_en: Fecha
     actualizado_en: Fecha
 

@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..database import DB
-from ..models import Empresa, Organizador, Visitante
+from ..models import Empresa, Organizador, UsuarioEmpresa, Visitante
 from ..schemas import (
     CambiarCorreo,
     CambiarPassword,
@@ -21,6 +21,7 @@ from ..schemas import (
 )
 from ..security import crear_token, hash_password, requiere, verificar_password
 from ..verificacion import crear_y_enviar, verificar
+from .empresas import correo_libre
 from .visitantes import buscar_por_codigo_o_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,6 +31,23 @@ CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos."
 
 def _token(sesion: Sesion) -> TokenOut:
     return TokenOut(token=crear_token(sesion), session=sesion)
+
+
+Cuenta = Empresa | Organizador | UsuarioEmpresa
+
+
+def _sesion_de(cuenta: Cuenta) -> Sesion:
+    """Sesión de una cuenta con contraseña. Un vendedor entra como su empresa, con usuarioId y usuarioNombre."""
+    if isinstance(cuenta, UsuarioEmpresa):
+        return Sesion(
+            role="empresa",
+            ref_id=cuenta.empresa_id,
+            nombre=cuenta.empresa.nombre,
+            usuario_id=cuenta.id,
+            usuario_nombre=cuenta.nombre,
+        )
+    role = "empresa" if isinstance(cuenta, Empresa) else "organizador"
+    return Sesion(role=role, ref_id=cuenta.id, nombre=cuenta.nombre)
 
 
 @router.post("/organizador", response_model=TokenOut)
@@ -42,15 +60,19 @@ def login_organizador(data: LoginPassword, db: DB):
 
 @router.post("/empresa", response_model=TokenOut)
 def login_empresa(data: LoginPassword, db: DB):
-    emp = db.scalar(select(Empresa).where(Empresa.email == data.email.lower()))
-    if emp and not emp.password_hash:
+    """La empresa con su correo principal o uno de sus vendedores con el suyo."""
+    email = data.email.lower()
+    cuenta: Empresa | UsuarioEmpresa | None = db.scalar(select(Empresa).where(Empresa.email == email))
+    if cuenta is None:
+        cuenta = db.scalar(select(UsuarioEmpresa).where(UsuarioEmpresa.email == email))
+    if isinstance(cuenta, Empresa) and not cuenta.password_hash:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Tu empresa aún no tiene contraseña. Pídela a la organización de la feria.",
         )
-    if not emp or not verificar_password(data.password, emp.password_hash):
+    if not cuenta or not verificar_password(data.password, cuenta.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
-    return _token(Sesion(role="empresa", ref_id=emp.id, nombre=emp.nombre))
+    return _token(_sesion_de(cuenta))
 
 
 @router.post("/visitante", response_model=TokenOut)
@@ -91,9 +113,12 @@ def login_visitante_correo(data: LoginVisitanteCorreo, db: DB):
     return _token(Sesion(role="visitante", ref_id=v.id, nombre=v.nombre))
 
 
-def _cuenta_con_password(db: DB, role: str, email: str) -> Empresa | Organizador | None:
-    modelo = Empresa if role == "empresa" else Organizador
-    return db.scalar(select(modelo).where(modelo.email == email))
+def _cuenta_con_password(db: DB, role: str, email: str) -> Cuenta | None:
+    if role == "organizador":
+        return db.scalar(select(Organizador).where(Organizador.email == email))
+    return db.scalar(select(Empresa).where(Empresa.email == email)) or db.scalar(
+        select(UsuarioEmpresa).where(UsuarioEmpresa.email == email)
+    )
 
 
 @router.post("/recuperar/enviar-codigo", response_model=EnviarCodigoOut)
@@ -116,7 +141,7 @@ def recuperar_cambiar(data: RecuperarCambiar, db: DB):
     verificar(db, email, f"recuperar_{data.role}", data.codigo)
     cuenta.password_hash = hash_password(data.password)
     db.commit()
-    return _token(Sesion(role=data.role, ref_id=cuenta.id, nombre=cuenta.nombre))
+    return _token(_sesion_de(cuenta))
 
 
 # ---------- Cuenta propia del organizador o la empresa ----------
@@ -124,15 +149,18 @@ def recuperar_cambiar(data: RecuperarCambiar, db: DB):
 SesionConPassword = Annotated[Sesion, Depends(requiere("organizador", "empresa"))]
 
 
-def _cuenta_de_sesion(db: DB, sesion: Sesion) -> Empresa | Organizador:
-    modelo = Empresa if sesion.role == "empresa" else Organizador
-    cuenta = db.get(modelo, sesion.ref_id)
+def _cuenta_de_sesion(db: DB, sesion: Sesion) -> Cuenta:
+    """La cuenta que inició la sesión: el vendedor si lo hay, si no la empresa o el organizador."""
+    if sesion.role == "empresa" and sesion.usuario_id:
+        cuenta = db.get(UsuarioEmpresa, sesion.usuario_id)
+    else:
+        cuenta = db.get(Empresa if sesion.role == "empresa" else Organizador, sesion.ref_id)
     if not cuenta:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontramos tu cuenta. Vuelve a ingresar.")
     return cuenta
 
 
-def _confirmar_password(cuenta: Empresa | Organizador, password: str) -> None:
+def _confirmar_password(cuenta: Cuenta, password: str) -> None:
     if not cuenta.password_hash or not verificar_password(password, cuenta.password_hash):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta.")
 
@@ -156,13 +184,20 @@ def cambiar_correo(data: CambiarCorreo, db: DB, sesion: SesionConPassword):
     _confirmar_password(cuenta, data.password)
     email = data.email.lower()
     if email != cuenta.email:
-        modelo = type(cuenta)
-        otro = db.scalar(select(modelo.id).where(modelo.email == email))
-        if otro and otro != cuenta.id:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese correo.")
+        if isinstance(cuenta, Organizador):
+            otro = db.scalar(select(Organizador.id).where(Organizador.email == email))
+            if otro and otro != cuenta.id:
+                raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese correo.")
+        else:
+            correo_libre(
+                db,
+                email,
+                excepto_empresa=cuenta.id if isinstance(cuenta, Empresa) else None,
+                excepto_usuario=cuenta.id if isinstance(cuenta, UsuarioEmpresa) else None,
+            )
         cuenta.email = email
         db.commit()
-    return _token(Sesion(role=sesion.role, ref_id=cuenta.id, nombre=cuenta.nombre))
+    return _token(_sesion_de(cuenta))
 
 
 @router.get("/me", response_model=Sesion)

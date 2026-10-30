@@ -91,6 +91,13 @@ Cada login devuelve `{ token, session }`, donde `session` tiene la misma forma q
 
 `GET /auth/me` devuelve la sesión del token.
 
+**Vendedores de una empresa.** La empresa agrega vendedores con su propio correo y contraseña
+(`/empresas/:id/usuarios`). Entran por el mismo `POST /auth/empresa`; su sesión es la de la empresa
+(`refId` = empresa, `nombre` = nombre de la empresa) más `usuarioId` y `usuarioNombre`. El correo no puede repetirse
+entre empresas y vendedores. Cada lead guarda en `registradoPor` quién escaneó primero al visitante. Un vendedor
+cambia su propia contraseña y su correo con `/auth/cambiar-password` y `/auth/cambiar-correo`, y puede usar
+"Olvidé mi contraseña" con `role: "empresa"`; no puede administrar el equipo.
+
 El organizador y la empresa pueden cambiar sus datos de acceso con su sesión iniciada:
 
 - `POST /auth/cambiar-password` con `{ passwordActual, passwordNueva }` (mínimo 6 caracteres). Responde 204,
@@ -171,7 +178,10 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `GET /empresas?feriaId=` · `GET /empresas/:id` | Público | Ficha pública del stand |
 | `POST /empresas` | Organizador | Requiere `feriaId`; acepta `password` opcional para el acceso de la empresa |
 | `PATCH /empresas/:id` | Organizador, o la propia empresa | Cambios parciales; `password` cambia la contraseña |
-| `DELETE /empresas/:id` | Organizador | Borra en cascada sus leads y vistas |
+| `DELETE /empresas/:id` | Organizador | Borra en cascada sus leads, vistas y vendedores |
+| `GET /empresas/:id/usuarios` | Organizador, la cuenta principal de la empresa | Vendedores: `[{ id, empresaId, nombre, email, creadoEn }]` |
+| `POST /empresas/:id/usuarios` | Organizador, la cuenta principal de la empresa | `{ nombre, email, password }`; 409 si el correo ya lo usa una empresa o un vendedor; 201 |
+| `DELETE /empresas/:id/usuarios/:usuarioId` | Organizador, la cuenta principal de la empresa | Quita al vendedor; sus leads se conservan; 204 |
 | `GET /visitantes?feriaId=` | Organizador | Con `feriaId`, solo los inscritos |
 | `GET /visitantes/buscar?q=` | Organizador, empresa | Por código, contenido del QR o correo. A la empresa le da 403 si no está inscrito en su feria |
 | `GET /visitantes/:id` | Organizador, o el propio visitante | |
