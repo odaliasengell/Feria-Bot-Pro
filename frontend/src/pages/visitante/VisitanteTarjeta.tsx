@@ -95,7 +95,9 @@ export default function VisitanteTarjeta() {
               {ofrecer.lugar && ` · ${ofrecer.lugar}`}
             </span>
           </div>
-          {ofrecer.abierta ? (
+          {ofrecer.abierta && ofrecer.llena ? (
+            <span className="badge tone-orange">Feria llena</span>
+          ) : ofrecer.abierta ? (
             <button className="btn btn-teal" onClick={() => inscribirme(ofrecer)} disabled={inscribiendo !== null}>
               <CalendarPlus size={17} /> {inscribiendo === ofrecer.id ? 'Inscribiendo…' : 'Inscribirme con mi cuenta'}
             </button>
@@ -212,9 +214,13 @@ export default function VisitanteTarjeta() {
                       )}
                     </span>
                   </div>
-                  <button className="btn btn-outline btn-sm" onClick={() => inscribirme(f)} disabled={inscribiendo !== null}>
-                    <CalendarPlus size={15} /> {inscribiendo === f.id ? 'Inscribiendo…' : 'Inscribirme'}
-                  </button>
+                  {f.llena ? (
+                    <span className="badge tone-orange">Feria llena</span>
+                  ) : (
+                    <button className="btn btn-outline btn-sm" onClick={() => inscribirme(f)} disabled={inscribiendo !== null}>
+                      <CalendarPlus size={15} /> {inscribiendo === f.id ? 'Inscribiendo…' : 'Inscribirme'}
+                    </button>
+                  )}
                 </li>
               ))}
           </ul>

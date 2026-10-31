@@ -80,11 +80,14 @@ function Detalle({ feria }: { feria: FeriaPublica }) {
         <div className="feria-det-info">
           <div className="feria-det-badges">
             <span className={`badge tone-${est.tone}`}>{est.label}</span>
-            {feria.estado !== 'finalizada' && (
-              <span className={`feria-insc ${feria.abierta ? 'is-open' : ''}`}>
-                {feria.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}
-              </span>
-            )}
+            {feria.estado !== 'finalizada' &&
+              (feria.abierta && feria.llena ? (
+                <span className="badge tone-orange">Feria llena</span>
+              ) : (
+                <span className={`feria-insc ${feria.abierta ? 'is-open' : ''}`}>
+                  {feria.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}
+                </span>
+              ))}
           </div>
           <h1>{feria.nombre}</h1>
           <ul className="feria-det-meta">
@@ -180,6 +183,15 @@ function Inscribirme({ feria }: { feria: FeriaPublica }) {
         <Link to={tarjeta} className="btn btn-primary btn-block">
           Ver mi tarjeta QR <ArrowRight size={16} />
         </Link>
+      </>
+    );
+  } else if (feria.abierta && feria.llena) {
+    contenido = (
+      <>
+        <p className="muted small">Se alcanzó el aforo de la feria.</p>
+        <button type="button" className="btn btn-outline btn-block" disabled>
+          Feria llena
+        </button>
       </>
     );
   } else if (!feria.abierta) {

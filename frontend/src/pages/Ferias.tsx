@@ -140,11 +140,14 @@ function TarjetaFeria({ feria: f }: { feria: Feria }) {
     <Link to={`/ferias/${encodeURIComponent(f.id)}`} className="card feria-card feria-pub-card">
       <div className="feria-card-top">
         <span className={`badge tone-${est.tone}`}>{est.label}</span>
-        {f.estado !== 'finalizada' && (
-          <span className={`feria-insc ${f.abierta ? 'is-open' : ''}`}>
-            {f.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}
-          </span>
-        )}
+        {f.estado !== 'finalizada' &&
+          (f.abierta && f.llena ? (
+            <span className="feria-insc">Feria llena</span>
+          ) : (
+            <span className={`feria-insc ${f.abierta ? 'is-open' : ''}`}>
+              {f.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}
+            </span>
+          ))}
       </div>
       <h3 className="feria-card-title">{f.nombre}</h3>
       <div className="feria-card-meta muted small">

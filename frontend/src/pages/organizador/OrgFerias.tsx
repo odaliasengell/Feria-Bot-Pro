@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { Building2, CalendarDays, Check, Copy, Link2, MapPin, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Check, Copy, CopyPlus, Link2, MapPin, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
 import type { Feria, NuevaFeria } from '../../types';
 import { feriasApi } from '../../services/api';
 import { useFeria } from '../../context/FeriaContext';
@@ -9,7 +9,7 @@ import { hoyISO, rangoFechas } from '../../lib/utils';
 import { Alert, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 
 function nuevaVacia(): NuevaFeria {
-  return { nombre: '', descripcion: '', lugar: '', fechaInicio: hoyISO(), fechaFin: hoyISO(), inscripcionesAbiertas: true };
+  return { nombre: '', descripcion: '', lugar: '', fechaInicio: hoyISO(), fechaFin: hoyISO(), inscripcionesAbiertas: true, aforo: null };
 }
 
 export function enlaceRegistro(feriaId: string): string {
@@ -27,6 +27,7 @@ export default function OrgFerias() {
   const { ferias, feria: actual, cargando, elegir, recargar } = useFeria();
   const [editando, setEditando] = useState<Feria | 'nueva' | null>(null);
   const [enlace, setEnlace] = useState<Feria | null>(null);
+  const [duplicando, setDuplicando] = useState<Feria | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -84,6 +85,7 @@ export default function OrgFerias() {
               <article key={f.id} className={`company-card feria-card ${esActual ? 'is-current' : ''}`}>
                 <div className="feria-card-top">
                   <span className={`badge tone-${estado.tone}`}>{estado.label}</span>
+                  {f.llena && <span className="badge tone-orange">Llena</span>}
                   {esActual && <span className="chip-mini teal">Administrando</span>}
                 </div>
                 <div>
@@ -108,9 +110,12 @@ export default function OrgFerias() {
                     </span>
                   </div>
                   <div>
-                    <b>{f.totalVisitantes}</b>
+                    <b>
+                      {f.totalVisitantes}
+                      {f.aforo !== null && <small className="muted"> / {f.aforo}</small>}
+                    </b>
                     <span>
-                      <Users size={12} /> inscritos
+                      <Users size={12} /> {f.aforo !== null ? 'inscritos / aforo' : 'inscritos'}
                     </span>
                   </div>
                 </div>
@@ -139,7 +144,10 @@ export default function OrgFerias() {
                     <Link2 size={15} /> Enlace de registro
                   </button>
                   <span className="spacer" />
-                  <button className="icon-btn" onClick={() => setEditando(f)} aria-label="Editar">
+                  <button className="icon-btn" onClick={() => setDuplicando(f)} aria-label="Duplicar" title="Duplicar">
+                    <CopyPlus size={16} />
+                  </button>
+                  <button className="icon-btn" onClick={() => setEditando(f)} aria-label="Editar" title="Editar">
                     <Pencil size={16} />
                   </button>
                   <button className="icon-btn danger" onClick={() => eliminar(f)} aria-label="Eliminar">
@@ -170,6 +178,20 @@ export default function OrgFerias() {
         )}
       </Modal>
 
+      <Modal open={duplicando !== null} onClose={() => setDuplicando(null)} title="Duplicar feria">
+        {duplicando && (
+          <FormDuplicar
+            origen={duplicando}
+            onDuplicar={async (datos) => {
+              const nueva = await feriasApi.duplicar(duplicando.id, datos);
+              setDuplicando(null);
+              await recargar();
+              elegir(nueva.id);
+            }}
+          />
+        )}
+      </Modal>
+
       <Modal open={enlace !== null} onClose={() => setEnlace(null)} title="Enlace de registro">
         {enlace && <EnlaceRegistro feria={enlace} />}
       </Modal>
@@ -185,6 +207,7 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
     fechaInicio: inicial.fechaInicio,
     fechaFin: inicial.fechaFin,
     inscripcionesAbiertas: inicial.inscripcionesAbiertas,
+    aforo: inicial.aforo,
   });
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -218,8 +241,20 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
         <Field label="Fecha de fin" hint="Las inscripciones se cierran solas al terminar este día.">
           <input className="input" type="date" value={f.fechaFin} min={f.fechaInicio} onChange={set('fechaFin')} required />
         </Field>
-        <Field label="Lugar" full>
+        <Field label="Lugar">
           <input className="input" value={f.lugar} onChange={set('lugar')} maxLength={255} placeholder="Ej. Centro de Convenciones, Quito" />
+        </Field>
+        <Field label="Aforo" hint="Máximo de visitantes inscritos. Vacío = sin límite.">
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={1000000}
+            step={1}
+            value={f.aforo ?? ''}
+            onChange={(e) => setF({ ...f, aforo: e.target.value === '' ? null : Math.max(1, Math.floor(Number(e.target.value))) })}
+            placeholder="Sin límite"
+          />
         </Field>
         <Field label="Descripción" full hint="La ven los visitantes al elegir la feria.">
           <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} maxLength={5000} />
@@ -233,6 +268,65 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
       {error && <Alert>{error}</Alert>}
       <button className="btn btn-primary btn-block" disabled={enviando}>
         {enviando ? 'Guardando…' : 'Guardar feria'}
+      </button>
+    </form>
+  );
+}
+
+/** Suma un año a una fecha YYYY-MM-DD (para sugerir las fechas de la próxima edición). */
+function masUnAnio(iso: string): string {
+  const [a, m, d] = iso.split('-');
+  return `${Number(a) + 1}-${m}-${d}`;
+}
+
+function FormDuplicar({
+  origen,
+  onDuplicar,
+}: {
+  origen: Feria;
+  onDuplicar: (d: { nombre: string; fechaInicio: string; fechaFin: string }) => Promise<void>;
+}) {
+  const [nombre, setNombre] = useState(origen.nombre);
+  const [fechaInicio, setFechaInicio] = useState(masUnAnio(origen.fechaInicio));
+  const [fechaFin, setFechaFin] = useState(masUnAnio(origen.fechaFin));
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault();
+    if (fechaFin < fechaInicio) {
+      setError('La fecha de fin no puede ser anterior a la de inicio.');
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    try {
+      await onDuplicar({ nombre: nombre.trim(), fechaInicio, fechaFin });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo duplicar');
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={enviar} className="stack">
+      <p className="muted small">
+        Se crea una nueva feria con la descripción, el lugar y el aforo de «{origen.nombre}». Las empresas y los visitantes no se copian.
+      </p>
+      <div className="form-grid">
+        <Field label="Nombre de la nueva feria" full>
+          <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} required maxLength={150} autoFocus />
+        </Field>
+        <Field label="Fecha de inicio">
+          <input className="input" type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} required />
+        </Field>
+        <Field label="Fecha de fin">
+          <input className="input" type="date" value={fechaFin} min={fechaInicio} onChange={(e) => setFechaFin(e.target.value)} required />
+        </Field>
+      </div>
+      {error && <Alert>{error}</Alert>}
+      <button className="btn btn-primary btn-block" disabled={enviando || !nombre.trim()}>
+        <CopyPlus size={16} /> {enviando ? 'Duplicando…' : 'Duplicar feria'}
       </button>
     </form>
   );
@@ -254,6 +348,7 @@ function EnlaceRegistro({ feria }: { feria: Feria }) {
   return (
     <div className="credencial-wrap">
       {!feria.abierta && <Alert>Las inscripciones de esta feria están cerradas: el enlace no permitirá registrarse.</Alert>}
+      {feria.abierta && feria.llena && <Alert>La feria llegó a su aforo: el enlace no permitirá registrarse.</Alert>}
       <article className="cartel printable">
         <div className="cartel-head">
           <div>

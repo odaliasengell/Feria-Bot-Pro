@@ -135,6 +135,10 @@ export const feriasApi = {
 
   actualizar: (id: string, cambios: Partial<NuevaFeria>) => pedir<Feria>('PATCH', `/ferias/${encodeURIComponent(id)}`, cambios),
 
+  /** Nueva edición: copia descripción, lugar y aforo con otro nombre y fechas (las empresas no se copian). */
+  duplicar: (id: string, datos: { nombre: string; fechaInicio: string; fechaFin: string }) =>
+    pedir<Feria>('POST', `/ferias/${encodeURIComponent(id)}/duplicar`, datos),
+
   /** Organizador: cifras de la feria para los gráficos del resumen. */
   estadisticas: (feriaId: string) => pedir<EstadisticasFeria>('GET', `/ferias/${encodeURIComponent(feriaId)}/estadisticas`),
 

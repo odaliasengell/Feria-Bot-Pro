@@ -82,7 +82,9 @@ function ElegirFeria({ ferias, onElegir }: { ferias: Feria[]; onElegir: (f: Feri
           <li key={f.id}>
             <button type="button" className="feria-option" onClick={() => onElegir(f)}>
               <div className="grow">
-                <strong>{f.nombre}</strong>
+                <strong>
+                  {f.nombre} {f.llena && <span className="badge tone-orange">Feria llena</span>}
+                </strong>
                 <span className="feria-card-meta muted small">
                   <span>
                     <CalendarDays size={14} /> {rangoFechas(f.fechaInicio, f.fechaFin)}
@@ -166,6 +168,15 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
       )}
     </div>
   );
+
+  if (feria.abierta && feria.llena)
+    return (
+      <>
+        {resumen}
+        <Alert>Feria llena: se alcanzó el aforo y ya no se aceptan inscripciones.</Alert>
+        <Link to="/registro" className="btn btn-outline">Ver otras ferias</Link>
+      </>
+    );
 
   if (!feria.abierta)
     return (

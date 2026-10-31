@@ -16,6 +16,10 @@ export interface Feria {
   /** Acepta inscripciones: interruptor encendido y la feria no terminó. */
   abierta: boolean;
   estado: EstadoFeria;
+  /** Máximo de inscritos; null = sin límite. */
+  aforo: number | null;
+  /** Llegó al aforo: no acepta más inscripciones de visitantes (el organizador sí puede inscribir). */
+  llena: boolean;
   totalEmpresas: number;
   totalVisitantes: number;
   creadoEn: string;
@@ -124,7 +128,7 @@ export interface AuthRespuesta {
   session: Session;
 }
 
-export type NuevaFeria = Pick<Feria, 'nombre' | 'descripcion' | 'lugar' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas'>;
+export type NuevaFeria = Pick<Feria, 'nombre' | 'descripcion' | 'lugar' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas' | 'aforo'>;
 export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;
 
