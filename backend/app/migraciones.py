@@ -94,6 +94,14 @@ def _agregar_registrado_por(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE leads ADD COLUMN registrado_por VARCHAR(150) NULL AFTER nota"))
 
 
+def _agregar_estado_lead(engine: Engine) -> None:
+    """Seguimiento del lead (nuevo, contactado, cotizado, cerrado); los existentes quedan en «nuevo»."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("leads")}
+    if "estado" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE leads ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'nuevo' AFTER calificacion"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
@@ -101,3 +109,4 @@ def migrar(engine: Engine) -> None:
     _agregar_asistencia(engine)
     _agregar_aforo(engine)
     _agregar_registrado_por(engine)
+    _agregar_estado_lead(engine)

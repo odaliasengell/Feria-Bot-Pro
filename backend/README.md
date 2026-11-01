@@ -193,7 +193,9 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `DELETE /visitantes/me` | El propio visitante | Borra su cuenta con sus inscripciones, leads y vistas; 204 |
 | `POST /auth/enviar-codigo` | Público | Envía el código de 6 dígitos al correo (`registro` o `ingreso`) |
 | `DELETE /visitantes/:id` | Organizador | Borra en cascada sus leads y vistas |
-| `GET /leads?empresaId=&visitanteId=&feriaId=` | Con sesión | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |
+| `GET /leads?empresaId=&visitanteId=&feriaId=` | Con sesión (cada lead trae `estado`) | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |
+| `GET /leads/exportar?feriaId=&empresaId=` | Con sesión | Los mismos leads que `GET /leads` (mismo alcance) en un .xlsx: fecha (hora local), empresa, stand, datos del visitante, calificación, estado, nota y registrado por |
+| `PATCH /leads/:id/estado` | Organizador, la propia empresa | `{ estado }`: `nuevo`, `contactado`, `cotizado` o `cerrado`; devuelve el lead |
 | `GET /leads/:empresaId/:visitanteId` | Organizador, la propia empresa | 404 si no existe |
 | `PUT /leads` | Organizador, la propia empresa | `{ empresaId, visitanteId, calificacion, nota }`; crea o actualiza (uno por empresa + visitante) |
 | `POST /vistas` | Organizador, el propio visitante | `{ visitanteId, empresaId }`; si ya existía actualiza la fecha |

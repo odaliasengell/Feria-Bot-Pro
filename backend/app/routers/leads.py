@@ -1,12 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 
 from ..database import DB
-from ..models import Empresa, Lead
-from ..schemas import LeadDetalleOut, LeadGuardar, LeadOut, Sesion
+from ..exportar import MIME_XLSX, generar_xlsx, nombre_archivo
+from ..models import Empresa, Feria, Lead
+from ..schemas import LeadDetalleOut, LeadEstado, LeadGuardar, LeadOut, Sesion
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
 from .empresas import obtener_empresa
@@ -25,14 +28,10 @@ def alcance(sesion: Sesion, empresa_id: str | None, visitante_id: str | None) ->
     return empresa_id, visitante_id
 
 
-@router.get("", response_model=list[LeadDetalleOut])
-def listar(
-    db: DB,
-    sesion: Annotated[Sesion, Depends(requiere())],
-    empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
-    visitante_id: Annotated[str | None, Query(alias="visitanteId")] = None,
-    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
-):
+def consulta_leads(
+    sesion: Sesion, empresa_id: str | None, visitante_id: str | None, feria_id: str | None
+) -> Select[tuple[Lead]]:
+    """Leads con empresa y visitante, con el alcance de la sesión. La usan el listado y la exportación."""
     empresa_id, visitante_id = alcance(sesion, empresa_id, visitante_id)
     q = select(Lead).options(selectinload(Lead.empresa), selectinload(Lead.visitante)).order_by(Lead.actualizado_en.desc())
     if empresa_id:
@@ -41,7 +40,67 @@ def listar(
         q = q.where(Lead.visitante_id == visitante_id)
     if feria_id:
         q = q.where(Lead.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id == feria_id)))
-    return db.scalars(q).all()
+    return q
+
+
+@router.get("", response_model=list[LeadDetalleOut])
+def listar(
+    db: DB,
+    sesion: Annotated[Sesion, Depends(requiere())],
+    empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
+    visitante_id: Annotated[str | None, Query(alias="visitanteId")] = None,
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
+):
+    return db.scalars(consulta_leads(sesion, empresa_id, visitante_id, feria_id)).all()
+
+
+@router.get(
+    "/exportar",
+    response_class=Response,
+    responses={200: {"content": {MIME_XLSX: {}}, "description": "Archivo .xlsx"}},
+)
+def exportar(
+    db: DB,
+    sesion: Annotated[Sesion, Depends(requiere())],
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
+    empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
+):
+    """Los mismos leads que GET /leads (mismo alcance por rol) en un archivo de Excel."""
+    leads = db.scalars(consulta_leads(sesion, empresa_id, None, feria_id)).all()
+    if sesion.role == "empresa":
+        empresa = db.get(Empresa, sesion.ref_id)
+        base = empresa.nombre if empresa else "empresa"
+    elif empresa_id and (empresa := db.get(Empresa, empresa_id)):
+        base = empresa.nombre
+    elif feria_id and (feria := db.get(Feria, feria_id)):
+        base = feria.nombre
+    else:
+        base = "todos"
+    archivo = nombre_archivo(base)
+    return Response(
+        content=generar_xlsx(list(leads)),
+        media_type=MIME_XLSX,
+        headers={"Content-Disposition": f"attachment; filename=\"{archivo}\"; filename*=UTF-8''{quote(archivo)}"},
+    )
+
+
+@router.patch("/{lead_id}/estado", response_model=LeadDetalleOut)
+def cambiar_estado(
+    lead_id: str,
+    data: LeadEstado,
+    db: DB,
+    sesion: Annotated[Sesion, Depends(requiere("organizador", "empresa"))],
+):
+    """Seguimiento del contacto: nuevo, contactado, cotizado o cerrado."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead no encontrado")
+    solo_propio(sesion, "empresa", lead.empresa_id)
+    if lead.estado != data.estado:
+        lead.estado = data.estado
+        lead.actualizado_en = ahora()
+        db.commit()
+    return lead
 
 
 @router.get("/{empresa_id}/{visitante_id}", response_model=LeadOut)

@@ -9,6 +9,7 @@ from .utils import ahora
 
 Fecha = DATETIME(fsp=6)
 CALIFICACIONES = ("interesado", "visita", "correo", "no_interesado")
+ESTADOS_LEAD = ("nuevo", "contactado", "cotizado", "cerrado")
 
 
 class Organizador(Base):
@@ -152,6 +153,8 @@ class Lead(Base):
     empresa_id: Mapped[str] = mapped_column(ForeignKey("empresas.id", ondelete="CASCADE"))
     visitante_id: Mapped[str] = mapped_column(ForeignKey("visitantes.id", ondelete="CASCADE"), index=True)
     calificacion: Mapped[str] = mapped_column(Enum(*CALIFICACIONES, name="calificacion"))
+    # Seguimiento comercial del contacto: uno de ESTADOS_LEAD (ver EstadoLead en schemas.py).
+    estado: Mapped[str] = mapped_column(String(20), default="nuevo", server_default="nuevo")
     nota: Mapped[str] = mapped_column(Text)
     # Quién escaneó al visitante: el vendedor, o la empresa / el organizador si fue su cuenta principal.
     registrado_por: Mapped[str | None] = mapped_column(String(150))

@@ -9,6 +9,7 @@ from pydantic.alias_generators import to_camel
 
 Role = Literal["organizador", "visitante", "empresa"]
 Calificacion = Literal["interesado", "visita", "correo", "no_interesado"]
+EstadoLead = Literal["nuevo", "contactado", "cotizado", "cerrado"]
 PropositoVisitante = Literal["registro", "ingreso"]
 PropositoCodigo = Literal["registro", "ingreso", "recuperar_empresa", "recuperar_organizador", "cambio_correo"]
 EstadoFeria = Literal["proxima", "en_curso", "finalizada"]
@@ -359,11 +360,16 @@ class LeadOut(CamelModel):
     empresa_id: str
     visitante_id: str
     calificacion: Calificacion
+    estado: EstadoLead = "nuevo"
     nota: str
     # Nombre de quien escaneó (null en los leads anteriores a esta función).
     registrado_por: str | None = None
     creado_en: Fecha
     actualizado_en: Fecha
+
+
+class LeadEstado(CamelModel):
+    estado: EstadoLead
 
 
 class LeadDetalleOut(LeadOut):
