@@ -31,14 +31,14 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
         (!empresaId || l.empresaId === empresaId) &&
         (!nq ||
           normalizar(
-            [l.visitante?.nombre, l.visitante?.email, l.visitante?.empresa, l.visitante?.ciudad, l.empresa?.nombre, l.nota].join(' '),
+            [l.visitante?.nombre, l.visitante?.email, l.visitante?.empresa, l.visitante?.ciudad, l.empresa?.nombre, l.nota, l.registradoPor].join(' '),
           ).includes(nq)),
     );
   }, [leads, q, cal, empresaId]);
 
   function exportar() {
     descargarCSV(archivo, [
-      [...(mostrarEmpresa ? ['Empresa expositora'] : []), 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Calificación', 'Nota', 'Fecha'],
+      [...(mostrarEmpresa ? ['Empresa expositora'] : []), 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Calificación', 'Nota', 'Registrado por', 'Fecha'],
       ...filtrados.map((l) => [
         ...(mostrarEmpresa ? [l.empresa?.nombre ?? ''] : []),
         l.visitante?.nombre ?? '',
@@ -48,6 +48,7 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
         l.visitante?.ciudad ?? '',
         CALIFICACIONES[l.calificacion].label,
         l.nota,
+        l.registradoPor ?? '',
         fechaHora(l.actualizadoEn),
       ]),
     ]);
@@ -95,6 +96,7 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
                 <th>Contacto</th>
                 <th>Calificación</th>
                 <th>Nota</th>
+                <th>Registrado por</th>
                 <th>Fecha</th>
               </tr>
             </thead>
@@ -130,6 +132,7 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
                     <CalificacionBadge c={l.calificacion} />
                   </td>
                   <td className="cell-nota">{l.nota || <span className="muted">—</span>}</td>
+                  <td className="nowrap">{l.registradoPor || <span className="muted">—</span>}</td>
                   <td className="nowrap muted">{fechaHora(l.actualizadoEn)}</td>
                 </tr>
               ))}

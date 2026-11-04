@@ -21,6 +21,7 @@ import type {
   NuevaFeria,
   NuevoVisitante,
   Session,
+  UsuarioEmpresa,
   SlugLegal,
   Visitante,
   VistaDetalle,
@@ -176,6 +177,16 @@ export const empresasApi = {
     pedir<Empresa>('PATCH', `/empresas/${encodeURIComponent(id)}`, cambios),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/empresas/${encodeURIComponent(id)}`),
+
+  /** Equipo de la empresa (solo la cuenta principal o el organizador). */
+  usuarios: (empresaId: string) => pedir<UsuarioEmpresa[]>('GET', `/empresas/${encodeURIComponent(empresaId)}/usuarios`),
+
+  agregarUsuario: (empresaId: string, datos: { nombre: string; email: string; password: string }) =>
+    pedir<UsuarioEmpresa>('POST', `/empresas/${encodeURIComponent(empresaId)}/usuarios`, datos),
+
+  /** Sus leads se conservan con su nombre en `registradoPor`. */
+  quitarUsuario: (empresaId: string, usuarioId: string) =>
+    pedir<void>('DELETE', `/empresas/${encodeURIComponent(empresaId)}/usuarios/${encodeURIComponent(usuarioId)}`),
 };
 
 export const visitantesApi = {

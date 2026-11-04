@@ -23,6 +23,7 @@ import OrgAcceso from './pages/organizador/OrgAcceso';
 import EmpresaLeads from './pages/empresa/EmpresaLeads';
 import EmpresaEscanear from './pages/empresa/EmpresaEscanear';
 import EmpresaFicha from './pages/empresa/EmpresaFicha';
+import EmpresaEquipo from './pages/empresa/EmpresaEquipo';
 import VisitanteTarjeta from './pages/visitante/VisitanteTarjeta';
 import VisitanteEscanear from './pages/visitante/VisitanteEscanear';
 import VisitanteCuenta from './pages/visitante/VisitanteCuenta';
@@ -71,6 +72,7 @@ export default function App() {
         <Route index element={<EmpresaLeads />} />
         <Route path="escanear" element={<EmpresaEscanear />} />
         <Route path="ficha" element={<EmpresaFicha />} />
+        <Route path="equipo" element={<EmpresaEquipo />} />
         <Route path="perfil" element={<Perfil />} />
       </Route>
 

@@ -95,6 +95,8 @@ export interface Lead {
   visitanteId: string;
   calificacion: Calificacion;
   nota: string;
+  /** Quién escaneó al visitante: el vendedor, o la empresa / la organización si fue su cuenta principal. */
+  registradoPor?: string | null;
   creadoEn: string;
   actualizadoEn: string;
 }
@@ -121,6 +123,18 @@ export interface Session {
   role: Role;
   refId?: string;
   nombre: string;
+  /** Solo si entró un vendedor de la empresa (refId sigue siendo la empresa). */
+  usuarioId?: string | null;
+  usuarioNombre?: string | null;
+}
+
+/** Vendedor de una empresa: entra con su propio correo y contraseña. */
+export interface UsuarioEmpresa {
+  id: string;
+  empresaId: string;
+  nombre: string;
+  email: string;
+  creadoEn: string;
 }
 
 export interface AuthRespuesta {

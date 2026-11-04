@@ -11,6 +11,7 @@ import {
   DoorOpen,
   UserCog,
   UserRound,
+  UsersRound,
   Store,
   Users,
   type LucideIcon,
@@ -34,6 +35,7 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
     { to: '/empresa', label: 'Mis leads', icon: ContactRound, end: true },
     { to: '/empresa/escanear', label: 'Escanear', icon: ScanLine },
     { to: '/empresa/ficha', label: 'Mi ficha', icon: Store },
+    { to: '/empresa/equipo', label: 'Mi equipo', icon: UsersRound },
     { to: '/empresa/perfil', label: 'Perfil', icon: UserRound },
   ],
   visitante: [
@@ -68,7 +70,10 @@ export default function AppLayout({ role }: { role: Role }) {
         </NavLink>
         <div className="role-pill">{ROL_LABEL[role]}</div>
         <nav className="side-nav">
-          {NAV[role].map(({ to, label, icon: Icon, end }) => (
+          {NAV[role]
+            // Los vendedores no administran el equipo de la empresa.
+            .filter((item) => !(item.to === '/empresa/equipo' && session?.usuarioId))
+            .map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className="side-link">
               <Icon size={19} />
               {label}
