@@ -1,13 +1,24 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..correo import enviar_acceso_empresa, enviar_sin_fallar, rango_fechas
 from ..database import DB
+from ..exportar import MIME_XLSX
+from ..importar import ArchivoInvalido, leer, plantilla_xlsx
 from ..models import Empresa, UsuarioEmpresa
-from ..schemas import EmpresaActualizar, EmpresaCrear, EmpresaOut, Sesion, UsuarioEmpresaCrear, UsuarioEmpresaOut
+from ..schemas import (
+    EmpresaActualizar,
+    EmpresaCrear,
+    EmpresaOut,
+    ErrorImportacion,
+    ImportacionOut,
+    Sesion,
+    UsuarioEmpresaCrear,
+    UsuarioEmpresaOut,
+)
 from ..security import hash_password, requiere, solo_propio
 from ..utils import uid
 from .ferias import obtener_feria
@@ -43,6 +54,70 @@ def listar(db: DB, feria_id: Annotated[str | None, Query(alias="feriaId")] = Non
     if feria_id:
         q = q.where(Empresa.feria_id == feria_id)
     return db.scalars(q).all()
+
+
+# ---------- Carga masiva desde Excel (antes de /{empresa_id}) ----------
+
+
+@router.get(
+    "/plantilla",
+    response_class=Response,
+    responses={200: {"content": {MIME_XLSX: {}}, "description": "Plantilla .xlsx"}},
+)
+def plantilla():
+    """Plantilla vacía para POST /empresas/importar (columnas e instrucciones)."""
+    return Response(
+        content=plantilla_xlsx(),
+        media_type=MIME_XLSX,
+        headers={"Content-Disposition": 'attachment; filename="plantilla-empresas.xlsx"'},
+    )
+
+
+@router.post("/importar", response_model=ImportacionOut, dependencies=[Depends(requiere("organizador"))])
+async def importar(
+    db: DB,
+    tareas: BackgroundTasks,
+    feria_id: Annotated[str, Query(alias="feriaId")],
+    archivo: Annotated[UploadFile, File(description="Excel .xlsx con las columnas de la plantilla")],
+):
+    """Crea las empresas válidas en la feria; las filas con errores se informan y no detienen la carga."""
+    feria = obtener_feria(db, feria_id)
+    contenido = await archivo.read()
+    try:
+        resultado = leer(contenido, db)
+    except ArchivoInvalido as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+    fechas = rango_fechas(feria.fecha_inicio, feria.fecha_fin)
+    for fila in resultado.validas:
+        d = fila.datos
+        db.add(
+            Empresa(
+                id=uid("emp-"),
+                feria_id=feria.id,
+                nombre=d["nombre"],
+                rubro=d.get("rubro", ""),
+                stand=d.get("stand", ""),
+                contacto_nombre=d.get("contacto", ""),
+                email=d["email"],
+                telefono=d.get("telefono", ""),
+                descripcion="",
+                servicios=[],
+                fotos=[],
+                password_hash=hash_password(d["password"]) if d.get("password") else None,
+            )
+        )
+    db.commit()
+    for fila in resultado.validas:
+        if fila.datos.get("password"):
+            tareas.add_task(
+                enviar_sin_fallar, enviar_acceso_empresa,
+                fila.datos["email"], fila.datos["nombre"], fila.datos["password"], feria.nombre, fechas,
+            )
+    return ImportacionOut(
+        creadas=len(resultado.validas),
+        errores=[ErrorImportacion(fila=n, motivo=m) for n, m in resultado.errores],
+    )
 
 
 @router.get("/{empresa_id}", response_model=EmpresaOut)

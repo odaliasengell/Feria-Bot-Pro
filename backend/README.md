@@ -177,6 +177,8 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `DELETE /inscripciones/:feriaId/:visitanteId` | Organizador | Quita de la feria y borra sus leads y vistas en ella |
 | `GET /empresas?feriaId=` · `GET /empresas/:id` | Público | Ficha pública del stand |
 | `POST /empresas` | Organizador | Requiere `feriaId`; acepta `password` opcional para el acceso de la empresa |
+| `GET /empresas/plantilla` | Público | Plantilla .xlsx vacía para la carga masiva (hoja Empresas e Instrucciones) |
+| `POST /empresas/importar?feriaId=` | Organizador | Multipart con el campo `archivo` (.xlsx, máx. 5 MB, 2000 filas). Columnas `nombre`, `rubro`, `stand`, `contacto`, `email`, `telefono`, `password` (obligatorias: nombre y email). Devuelve `{ creadas, errores: [{ fila, motivo }] }`: las filas con errores (correo inválido, repetido o ya usado, contraseña corta…) no se cargan y no detienen al resto. 400 si el archivo no es un .xlsx o faltan columnas. Las empresas con contraseña reciben el correo de acceso |
 | `PATCH /empresas/:id` | Organizador, o la propia empresa | Cambios parciales; `password` cambia la contraseña |
 | `DELETE /empresas/:id` | Organizador | Borra en cascada sus leads, vistas y vendedores |
 | `GET /empresas/:id/usuarios` | Organizador, la cuenta principal de la empresa | Vendedores: `[{ id, empresaId, nombre, email, creadoEn }]` |

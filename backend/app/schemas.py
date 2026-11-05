@@ -275,6 +275,16 @@ class UsuarioEmpresaOut(CamelModel):
     creado_en: Fecha
 
 
+class ErrorImportacion(CamelModel):
+    fila: int
+    motivo: str
+
+
+class ImportacionOut(CamelModel):
+    creadas: int
+    errores: list[ErrorImportacion]
+
+
 # ---------- Visitantes ----------
 
 
