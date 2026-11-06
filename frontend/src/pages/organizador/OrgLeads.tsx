@@ -22,7 +22,7 @@ function LeadsFeria({ feria }: { feria: Feria }) {
           <div className="card card-slim">
             <DistribucionCalificaciones leads={data ?? []} />
           </div>
-          <LeadsTabla leads={data ?? []} mostrarEmpresa archivo={`leads-${feria.nombre}.csv`} />
+          <LeadsTabla leads={data ?? []} mostrarEmpresa archivo={`leads-${feria.nombre}.csv`} excel={{ feriaId: feria.id }} />
         </>
       )}
     </>

@@ -32,7 +32,7 @@ export default function EmpresaLeads() {
         <StatCard label="Visitas por agendar" value={cuenta('visita')} icon={<CalendarCheck />} tone="blue" />
         <StatCard label="Correos por enviar" value={cuenta('correo')} icon={<Mail />} tone="orange" hint={`${vistas.length} ${vistas.length === 1 ? 'visitante vio' : 'visitantes vieron'} tu ficha`} />
       </div>
-      <LeadsTabla leads={leads} archivo={`leads-${session?.nombre ?? 'empresa'}.csv`} />
+      <LeadsTabla leads={leads} archivo={`leads-${session?.nombre ?? 'empresa'}.csv`} excel={{ empresaId }} />
       {vistas.length > 0 && (
         <p className="muted small vistas-note">
           <Eye size={14} /> {vistas.length} {vistas.length === 1 ? 'visitante abrió' : 'visitantes abrieron'} tu ficha digital desde el QR del stand.

@@ -89,11 +89,15 @@ export interface Visitante {
 export type Calificacion = 'interesado' | 'visita' | 'correo' | 'no_interesado';
 
 /** Contacto que una empresa registra al escanear el QR de un visitante. */
+/** Seguimiento comercial del lead después de la feria. */
+export type EstadoLead = 'nuevo' | 'contactado' | 'cotizado' | 'cerrado';
+
 export interface Lead {
   id: string;
   empresaId: string;
   visitanteId: string;
   calificacion: Calificacion;
+  estado: EstadoLead;
   nota: string;
   /** Quién escaneó al visitante: el vendedor, o la empresa / la organización si fue su cuenta principal. */
   registradoPor?: string | null;

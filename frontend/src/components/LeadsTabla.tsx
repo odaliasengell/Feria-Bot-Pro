@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Download, Mail, Phone, Search, Inbox } from 'lucide-react';
-import type { Calificacion, LeadDetalle } from '../types';
-import { CALIFICACIONES, CALIFICACION_ORDEN, descargarCSV, fechaHora, normalizar } from '../lib/utils';
-import { Avatar, CalificacionBadge, EmptyState } from './ui';
+import { Download, FileSpreadsheet, Mail, Phone, Search, Inbox } from 'lucide-react';
+import type { Calificacion, EstadoLead, LeadDetalle } from '../types';
+import { leadsApi } from '../services/api';
+import { CALIFICACIONES, CALIFICACION_ORDEN, ESTADOS_LEAD, ESTADO_LEAD_ORDEN, descargarCSV, fechaHora, normalizar } from '../lib/utils';
+import { Alert, Avatar, CalificacionBadge, EmptyState } from './ui';
 
 interface Props {
   leads: LeadDetalle[];
@@ -10,12 +11,52 @@ interface Props {
   mostrarEmpresa?: boolean;
   archivo: string;
   onSelect?: (lead: LeadDetalle) => void;
+  /** Filtro que se envía a GET /leads/exportar para el botón Excel. */
+  excel?: { feriaId?: string; empresaId?: string };
 }
 
-export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }: Props) {
+export default function LeadsTabla({ leads: recibidos, mostrarEmpresa, archivo, onSelect, excel }: Props) {
   const [q, setQ] = useState('');
   const [cal, setCal] = useState<Calificacion | ''>('');
+  const [estado, setEstado] = useState<EstadoLead | ''>('');
   const [empresaId, setEmpresaId] = useState('');
+  /** Estados cambiados en esta pantalla (se muestran al instante, antes de que el padre recargue). */
+  const [cambios, setCambios] = useState<Record<string, EstadoLead>>({});
+  const [guardando, setGuardando] = useState<string | null>(null);
+  const [descargando, setDescargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const leads = useMemo(
+    () => recibidos.map((l) => (cambios[l.id] && cambios[l.id] !== l.estado ? { ...l, estado: cambios[l.id] } : l)),
+    [recibidos, cambios],
+  );
+
+  async function cambiarEstado(l: LeadDetalle, nuevo: EstadoLead) {
+    const anterior = l.estado;
+    setCambios((c) => ({ ...c, [l.id]: nuevo }));
+    setGuardando(l.id);
+    setError(null);
+    try {
+      await leadsApi.cambiarEstado(l.id, nuevo);
+    } catch (err) {
+      setCambios((c) => ({ ...c, [l.id]: anterior }));
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado');
+    } finally {
+      setGuardando(null);
+    }
+  }
+
+  async function exportarExcel() {
+    setDescargando(true);
+    setError(null);
+    try {
+      await leadsApi.exportarExcel(excel);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo descargar el Excel');
+    } finally {
+      setDescargando(false);
+    }
+  }
 
   const empresas = useMemo(() => {
     const m = new Map<string, string>();
@@ -28,17 +69,18 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
     return leads.filter(
       (l) =>
         (!cal || l.calificacion === cal) &&
+        (!estado || l.estado === estado) &&
         (!empresaId || l.empresaId === empresaId) &&
         (!nq ||
           normalizar(
             [l.visitante?.nombre, l.visitante?.email, l.visitante?.empresa, l.visitante?.ciudad, l.empresa?.nombre, l.nota, l.registradoPor].join(' '),
           ).includes(nq)),
     );
-  }, [leads, q, cal, empresaId]);
+  }, [leads, q, cal, estado, empresaId]);
 
   function exportar() {
     descargarCSV(archivo, [
-      [...(mostrarEmpresa ? ['Empresa expositora'] : []), 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Calificación', 'Nota', 'Registrado por', 'Fecha'],
+      [...(mostrarEmpresa ? ['Empresa expositora'] : []), 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Calificación', 'Estado', 'Nota', 'Registrado por', 'Fecha'],
       ...filtrados.map((l) => [
         ...(mostrarEmpresa ? [l.empresa?.nombre ?? ''] : []),
         l.visitante?.nombre ?? '',
@@ -47,6 +89,7 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
         l.visitante?.empresa ?? '',
         l.visitante?.ciudad ?? '',
         CALIFICACIONES[l.calificacion].label,
+        ESTADOS_LEAD[l.estado]?.label ?? l.estado,
         l.nota,
         l.registradoPor ?? '',
         fechaHora(l.actualizadoEn),
@@ -77,10 +120,33 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
             </button>
           ))}
         </div>
+        <select
+          className="input input-sm"
+          value={estado}
+          onChange={(e) => setEstado(e.target.value as EstadoLead | '')}
+          aria-label="Filtrar por estado"
+        >
+          <option value="">Todos los estados</option>
+          {ESTADO_LEAD_ORDEN.map((e) => (
+            <option key={e} value={e}>
+              {ESTADOS_LEAD[e].label}
+            </option>
+          ))}
+        </select>
         <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!filtrados.length}>
           <Download size={15} /> CSV
         </button>
+        {excel && (
+          <button className="btn btn-outline btn-sm" onClick={exportarExcel} disabled={descargando || !leads.length}>
+            <FileSpreadsheet size={15} /> {descargando ? 'Descargando…' : 'Excel'}
+          </button>
+        )}
       </div>
+      {error && (
+        <div className="table-alert">
+          <Alert>{error}</Alert>
+        </div>
+      )}
 
       {filtrados.length === 0 ? (
         <EmptyState icon={<Inbox />} title={leads.length ? 'Sin resultados' : 'Aún no hay leads'}>
@@ -95,6 +161,7 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
                 {mostrarEmpresa && <th>Stand / empresa</th>}
                 <th>Contacto</th>
                 <th>Calificación</th>
+                <th>Estado</th>
                 <th>Nota</th>
                 <th>Registrado por</th>
                 <th>Fecha</th>
@@ -130,6 +197,21 @@ export default function LeadsTabla({ leads, mostrarEmpresa, archivo, onSelect }:
                   </td>
                   <td>
                     <CalificacionBadge c={l.calificacion} />
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <select
+                      className={`input input-sm estado-lead tone-${ESTADOS_LEAD[l.estado]?.tone ?? 'gray'}`}
+                      value={l.estado}
+                      onChange={(e) => cambiarEstado(l, e.target.value as EstadoLead)}
+                      disabled={guardando === l.id}
+                      aria-label={`Estado del lead de ${l.visitante?.nombre ?? 'visitante'}`}
+                    >
+                      {ESTADO_LEAD_ORDEN.map((e) => (
+                        <option key={e} value={e}>
+                          {ESTADOS_LEAD[e].label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="cell-nota">{l.nota || <span className="muted">—</span>}</td>
                   <td className="nowrap">{l.registradoPor || <span className="muted">—</span>}</td>

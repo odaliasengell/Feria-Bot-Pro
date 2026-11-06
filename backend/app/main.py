@@ -29,6 +29,8 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    # El frontend (otro origen) lee el nombre del archivo en las descargas, como el Excel de leads.
+    expose_headers=["Content-Disposition"],
 )
 
 

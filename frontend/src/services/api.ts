@@ -11,6 +11,7 @@ import type {
   DocumentoLegal,
   Empresa,
   EstadoFeria,
+  EstadoLead,
   EstadisticasFeria,
   Feria,
   FeriaPublica,
@@ -81,6 +82,44 @@ async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown, query?: 
     throw new ApiError(typeof detalle === 'string' ? detalle : `Error ${res.status}`, res.status);
   }
   return datos as T;
+}
+
+/**
+ * Descarga un archivo autenticado: fetch con el token, se lee como blob y se guarda con el nombre que envía
+ * el backend en Content-Disposition (o `nombrePorDefecto`).
+ */
+async function descargar(ruta: string, query: Query, nombrePorDefecto: string): Promise<void> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v) params.set(k, v);
+  const qs = params.toString();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(API_URL + ruta + (qs ? `?${qs}` : ''), { headers });
+  } catch {
+    throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0);
+  }
+  if (!res.ok) {
+    if (res.status === 401 && token) alExpirar?.();
+    const datos = await res.json().catch(() => null);
+    throw new ApiError(typeof datos?.detail === 'string' ? datos.detail : `Error ${res.status}`, res.status);
+  }
+
+  const disp = res.headers.get('Content-Disposition') ?? '';
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disp);
+  const simple = /filename="?([^";]+)"?/i.exec(disp);
+  const nombre = utf8 ? decodeURIComponent(utf8[1]) : simple ? simple[1] : nombrePorDefecto;
+
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Para los `obtener`/`buscar`: un 404 se devuelve como `null`, igual que antes. */
@@ -232,6 +271,13 @@ export const leadsApi = {
 
   obtener: (empresaId: string, visitanteId: string) =>
     oNull(pedir<Lead>('GET', `/leads/${encodeURIComponent(empresaId)}/${encodeURIComponent(visitanteId)}`)),
+
+  /** Seguimiento: nuevo, contactado, cotizado o cerrado. */
+  cambiarEstado: (leadId: string, estado: EstadoLead) =>
+    pedir<LeadDetalle>('PATCH', `/leads/${encodeURIComponent(leadId)}/estado`, { estado }),
+
+  /** Descarga los leads en Excel (.xlsx), con el mismo alcance por rol que `listar`. */
+  exportarExcel: (filtro: { feriaId?: string; empresaId?: string } = {}) => descargar('/leads/exportar', filtro, 'leads.xlsx'),
 
   /** Una empresa guarda (o actualiza) la calificación de un visitante escaneado. */
   guardar: (empresaId: string, visitanteId: string, calificacion: Calificacion, nota: string) =>

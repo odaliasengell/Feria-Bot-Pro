@@ -1,4 +1,4 @@
-import type { Calificacion } from '../types';
+import type { Calificacion, EstadoLead } from '../types';
 
 export const CALIFICACIONES: Record<Calificacion, { label: string; desc: string; tone: Tone }> = {
   interesado: { label: 'Interesado', desc: 'Quiere saber más', tone: 'teal' },
@@ -10,6 +10,15 @@ export const CALIFICACIONES: Record<Calificacion, { label: string; desc: string;
 export const CALIFICACION_ORDEN: Calificacion[] = ['interesado', 'visita', 'correo', 'no_interesado'];
 
 export type Tone = 'teal' | 'blue' | 'orange' | 'gray' | 'navy';
+
+export const ESTADOS_LEAD: Record<EstadoLead, { label: string; tone: Tone }> = {
+  nuevo: { label: 'Nuevo', tone: 'gray' },
+  contactado: { label: 'Contactado', tone: 'blue' },
+  cotizado: { label: 'Cotizado', tone: 'orange' },
+  cerrado: { label: 'Cerrado', tone: 'teal' },
+};
+
+export const ESTADO_LEAD_ORDEN: EstadoLead[] = ['nuevo', 'contactado', 'cotizado', 'cerrado'];
 
 export function uid(prefix = ''): string {
   return prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
