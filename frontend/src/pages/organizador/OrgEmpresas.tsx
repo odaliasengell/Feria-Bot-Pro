@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, ExternalLink, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import { Building2, ExternalLink, FileSpreadsheet, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
 import type { Empresa, Feria, NuevaEmpresa } from '../../types';
 import { empresasApi, leadsApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { Alert, Avatar, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 import { CartelStand } from '../../components/Credenciales';
 import { ConFeria } from '../../components/FeriaSelector';
+import ImportarEmpresas from './ImportarEmpresas';
 
 type DatosEmpresa = Omit<NuevaEmpresa, 'feriaId'>;
 
@@ -34,6 +35,7 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
   );
   const [editando, setEditando] = useState<Empresa | 'nueva' | null>(null);
   const [qr, setQr] = useState<Empresa | null>(null);
+  const [importando, setImportando] = useState(false);
 
   async function eliminar(e: Empresa) {
     if (!confirm(`¿Eliminar ${e.nombre}? También se borrarán sus leads.`)) return;
@@ -49,9 +51,14 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
         title="Empresas participantes"
         subtitle={`Empresas de «${feria.nombre}». Carga su rubro y datos del negocio; cada una completa luego su ficha digital.`}
         actions={
-          <button className="btn btn-primary" onClick={() => setEditando('nueva')}>
-            <Plus size={17} /> Nueva empresa
-          </button>
+          <>
+            <button className="btn btn-outline" onClick={() => setImportando(true)}>
+              <FileSpreadsheet size={17} /> Importar desde Excel
+            </button>
+            <button className="btn btn-primary" onClick={() => setEditando('nueva')}>
+              <Plus size={17} /> Nueva empresa
+            </button>
+          </>
         }
       />
 
@@ -127,6 +134,10 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
             }}
           />
         )}
+      </Modal>
+
+      <Modal open={importando} onClose={() => setImportando(false)} title="Importar empresas desde Excel" wide>
+        {importando && <ImportarEmpresas feria={feria} onImportadas={recargar} />}
       </Modal>
 
       <Modal open={qr !== null} onClose={() => setQr(null)} title="QR del stand">

@@ -132,6 +132,12 @@ export interface Session {
   usuarioNombre?: string | null;
 }
 
+/** POST /empresas/importar: empresas creadas y filas del Excel que no se pudieron cargar. */
+export interface ResultadoImportacion {
+  creadas: number;
+  errores: { fila: number; motivo: string }[];
+}
+
 /** Vendedor de una empresa: entra con su propio correo y contraseña. */
 export interface UsuarioEmpresa {
   id: string;

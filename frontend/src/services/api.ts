@@ -21,6 +21,7 @@ import type {
   NuevaEmpresa,
   NuevaFeria,
   NuevoVisitante,
+  ResultadoImportacion,
   Session,
   UsuarioEmpresa,
   SlugLegal,
@@ -64,12 +65,14 @@ async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown, query?: 
   const url = API_URL + ruta + (qs ? `?${qs}` : '');
 
   const headers: Record<string, string> = {};
-  if (cuerpo !== undefined) headers['Content-Type'] = 'application/json';
+  // Con FormData (subida de archivos) el navegador pone el Content-Type multipart con su boundary.
+  const esFormulario = cuerpo instanceof FormData;
+  if (cuerpo !== undefined && !esFormulario) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
-    res = await fetch(url, { method: metodo, headers, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+    res = await fetch(url, { method: metodo, headers, body: cuerpo === undefined ? undefined : esFormulario ? cuerpo : JSON.stringify(cuerpo) });
   } catch {
     throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0);
   }
@@ -216,6 +219,16 @@ export const empresasApi = {
     pedir<Empresa>('PATCH', `/empresas/${encodeURIComponent(id)}`, cambios),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/empresas/${encodeURIComponent(id)}`),
+
+  /** Descarga la plantilla .xlsx para la carga masiva. */
+  descargarPlantilla: () => descargar('/empresas/plantilla', {}, 'plantilla-empresas.xlsx'),
+
+  /** Carga masiva: crea las empresas válidas del Excel en la feria e informa las filas con errores. */
+  importar: (feriaId: string, archivo: File) => {
+    const datos = new FormData();
+    datos.append('archivo', archivo);
+    return pedir<ResultadoImportacion>('POST', '/empresas/importar', datos, { feriaId });
+  },
 
   /** Equipo de la empresa (solo la cuenta principal o el organizador). */
   usuarios: (empresaId: string) => pedir<UsuarioEmpresa[]>('GET', `/empresas/${encodeURIComponent(empresaId)}/usuarios`),
