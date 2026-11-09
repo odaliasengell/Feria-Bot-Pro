@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, CalendarPlus, ChevronRight, Eye, Mail, MapPin, PartyPopper, Phone, ScanLine, Store } from 'lucide-react';
+import { CalendarDays, CalendarPlus, ChevronRight, Eye, Mail, MapPin, PartyPopper, Phone, ScanLine, Store, WifiOff } from 'lucide-react';
 import type { Feria } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { feriasApi, inscripcionesApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
+import { useEnLinea } from '../../lib/useEnLinea';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
 import { Alert, Avatar, Card, EmptyState, Loader } from '../../components/ui';
 import { TarjetaVisitante } from '../../components/Credenciales';
@@ -14,6 +15,7 @@ export default function VisitanteTarjeta() {
   const id = session?.refId ?? '';
   const [params, setParams] = useSearchParams();
   const pedida = params.get('feria');
+  const enLinea = useEnLinea();
   const { data, cargando, recargar } = useAsync(
     () =>
       Promise.all([
@@ -31,7 +33,15 @@ export default function VisitanteTarjeta() {
 
   if (cargando && !data) return <Loader />;
   const [visitante, inscripciones, leads, vistas, abiertas, feriaPedida] = data ?? [null, [], [], [], [], null];
-  if (!visitante) return <Alert>No encontramos tu registro. Vuelve a ingresar.</Alert>;
+  if (!visitante)
+    return enLinea ? (
+      <Alert>No encontramos tu registro. Vuelve a ingresar.</Alert>
+    ) : (
+      <Alert>
+        <WifiOff size={16} style={{ verticalAlign: -3 }} /> Sin conexión. Abre tu tarjeta una vez con internet para tenerla
+        disponible sin conexión.
+      </Alert>
+    );
 
   const misFerias = inscripciones.map((i) => i.feria).filter((f): f is Feria => !!f);
   const inscritoEn = new Set(misFerias.map((f) => f.id));
@@ -81,6 +91,11 @@ export default function VisitanteTarjeta() {
       {params.get('nuevo') && (
         <Alert tone="teal">
           <PartyPopper size={18} /> ¡Listo! Esta es tu tarjeta. Guárdala en tu celular o imprímela.
+        </Alert>
+      )}
+      {!enLinea && (
+        <Alert tone="gray">
+          <WifiOff size={16} style={{ verticalAlign: -3 }} /> Sin conexión: ves tu tarjeta guardada. Tu QR funciona igual en los stands.
         </Alert>
       )}
       {error && <Alert>{error}</Alert>}

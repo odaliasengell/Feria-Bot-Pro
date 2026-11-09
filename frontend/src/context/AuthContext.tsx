@@ -3,6 +3,8 @@ import type { AuthRespuesta, Session } from '../types';
 import { alExpirarSesion, setToken } from '../services/api';
 
 const KEY = 'feriabot.auth';
+/** Mismo nombre que la caché de la API en vite.config.ts (workbox runtimeCaching). */
+const CACHE_API = 'feriabot-api';
 
 interface AuthValue {
   session: Session | null;
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = useCallback((auth: AuthRespuesta) => {
+    if ('caches' in window && leerAuth()?.session.refId !== auth.session.refId) caches.delete(CACHE_API).catch(() => {});
     localStorage.setItem(KEY, JSON.stringify(auth));
     setToken(auth.token);
     setSession(auth.session);
@@ -39,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(KEY);
+    // Las respuestas de la API guardadas para usar sin conexión (PWA) son de esta cuenta: se borran.
+    if ('caches' in window) caches.delete(CACHE_API).catch(() => {});
     setToken(null);
     setSession(null);
   }, []);
