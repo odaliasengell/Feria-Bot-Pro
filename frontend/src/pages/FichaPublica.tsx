@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Globe, ImageIcon, Mail, MapPin, MessageCircle, Phone, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarPlus, CheckCircle2, Globe, ImageIcon, Mail, MapPin, MessageCircle, Phone, UserRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { empresasApi, vistasApi } from '../services/api';
+import { ApiError, empresasApi, feriasApi, inscripcionesApi, vistasApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
+import { rangoFechas } from '../lib/utils';
 import { Avatar, EmptyState, Loader } from '../components/ui';
 
 /** Ficha digital de una empresa. Es lo que abre el QR del stand. */
@@ -11,8 +12,18 @@ export default function FichaPublica() {
   const { id = '' } = useParams();
   const { session } = useAuth();
   const navigate = useNavigate();
-  const { data: empresa, cargando } = useAsync(() => empresasApi.obtener(id), [id]);
+  const { data, cargando } = useAsync(async () => {
+    const empresa = await empresasApi.obtener(id);
+    const feria = empresa ? await feriasApi.obtener(empresa.feriaId) : null;
+    return { empresa, feria };
+  }, [id]);
+  const empresa = data?.empresa ?? null;
+  const feria = data?.feria ?? null;
   const [registrada, setRegistrada] = useState(false);
+  /** El visitante abrió la ficha de una feria en la que no está inscrito. */
+  const [noInscrito, setNoInscrito] = useState(false);
+  const [inscribiendo, setInscribiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [fotoActiva, setFotoActiva] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,13 +31,30 @@ export default function FichaPublica() {
       vistasApi
         .registrar(session.refId, empresa.id)
         .then(() => setRegistrada(true))
-        .catch(() => {
-          /* la ficha se muestra igual aunque no se guarde en el historial */
+        .catch((e) => {
+          // La ficha se muestra igual aunque no se guarde en el historial.
+          if (e instanceof ApiError && e.status === 403) setNoInscrito(true);
         });
     }
   }, [empresa, session]);
 
-  if (cargando) return <div className="ficha-page"><Loader /></div>;
+  async function inscribirme() {
+    if (!empresa || !session?.refId) return;
+    setInscribiendo(true);
+    setError(null);
+    try {
+      await inscripcionesApi.inscribir(empresa.feriaId);
+      await vistasApi.registrar(session.refId, empresa.id);
+      setNoInscrito(false);
+      setRegistrada(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo completar la inscripción');
+    } finally {
+      setInscribiendo(false);
+    }
+  }
+
+  if (cargando && !data) return <div className="ficha-page"><Loader /></div>;
   if (!empresa)
     return (
       <div className="ficha-page">
@@ -57,6 +85,11 @@ export default function FichaPublica() {
             </span>
             <h1>{empresa.nombre}</h1>
             <p className="muted">{empresa.rubro}</p>
+            {feria && (
+              <p className="muted small ficha-feria">
+                <CalendarDays size={13} /> {feria.nombre} · {rangoFechas(feria.fechaInicio, feria.fechaFin)}
+              </p>
+            )}
           </div>
         </div>
 
@@ -65,9 +98,26 @@ export default function FichaPublica() {
             <CheckCircle2 size={18} /> Guardamos esta empresa en tu historial de la feria.
           </div>
         )}
+        {noInscrito && (
+          <div className="alert tone-blue ficha-visto ficha-inscribir">
+            <span>
+              No estás inscrito en <b>{feria?.nombre ?? 'esta feria'}</b>. Inscríbete para guardar esta empresa en tu historial.
+            </span>
+            {feria?.abierta ? (
+              <button className="btn btn-teal btn-sm" onClick={inscribirme} disabled={inscribiendo}>
+                <CalendarPlus size={15} /> {inscribiendo ? 'Inscribiendo…' : 'Inscribirme'}
+              </button>
+            ) : (
+              <span className="badge tone-orange">Inscripciones cerradas</span>
+            )}
+          </div>
+        )}
+        {error && <div className="alert tone-orange ficha-visto">{error}</div>}
         {!session && (
           <div className="alert tone-blue ficha-visto">
-            ¿Eres visitante? <Link to="/ingresar?rol=visitante">Ingresa</Link> para guardar esta empresa en tu historial.
+            ¿Eres visitante?{' '}
+            <Link to={`/ingresar?rol=visitante${feria ? `&feria=${encodeURIComponent(feria.id)}` : ''}`}>Ingresa</Link> o{' '}
+            <Link to={feria ? `/registro/${feria.id}` : '/registro'}>regístrate</Link> para guardar esta empresa en tu historial.
           </div>
         )}
 

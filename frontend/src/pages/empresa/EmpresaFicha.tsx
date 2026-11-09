@@ -68,8 +68,9 @@ export default function EmpresaFicha() {
     setEstado('guardando');
     setError(null);
     try {
-      const { id, creadoEn: _c, ...datos } = f;
+      const { id, creadoEn: _c, feriaId: _f, ...datos } = f;
       void _c;
+      void _f;
       await empresasApi.actualizar(id, datos);
       setEstado('ok');
     } catch (err) {

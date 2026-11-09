@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Enum, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, Enum, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.mysql import DATETIME, LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,10 +21,32 @@ class Organizador(Base):
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
 
 
+class Feria(Base):
+    """Feria creada por el organizador. Empresas, inscripciones, leads y vistas pertenecen a una feria."""
+
+    __tablename__ = "ferias"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(150))
+    descripcion: Mapped[str] = mapped_column(Text)
+    lugar: Mapped[str] = mapped_column(String(255), default="")
+    fecha_inicio: Mapped[date] = mapped_column(Date)
+    fecha_fin: Mapped[date] = mapped_column(Date, index=True)
+    # Interruptor manual del organizador; además la inscripción se cierra sola después de fecha_fin.
+    inscripciones_abiertas: Mapped[bool] = mapped_column(Boolean, default=True)
+    creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
+
+    @property
+    def abierta(self) -> bool:
+        """Acepta inscripciones: interruptor encendido y la feria no ha terminado."""
+        return bool(self.inscripciones_abiertas) and date.today() <= self.fecha_fin
+
+
 class Empresa(Base):
     __tablename__ = "empresas"
 
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    feria_id: Mapped[str] = mapped_column(ForeignKey("ferias.id", ondelete="CASCADE"), index=True)
     nombre: Mapped[str] = mapped_column(String(150), index=True)
     rubro: Mapped[str] = mapped_column(String(100), default="")
     descripcion: Mapped[str] = mapped_column(Text)
@@ -40,6 +62,8 @@ class Empresa(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora)
 
+    feria: Mapped[Feria] = relationship()
+
 
 class Visitante(Base):
     __tablename__ = "visitantes"
@@ -53,6 +77,21 @@ class Visitante(Base):
     empresa: Mapped[str] = mapped_column(String(150), default="")
     ciudad: Mapped[str] = mapped_column(String(100), default="")
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
+
+
+class Inscripcion(Base):
+    """Un visitante (una sola cuenta) inscrito a una feria. Puede estar inscrito en varias."""
+
+    __tablename__ = "inscripciones"
+    __table_args__ = (UniqueConstraint("feria_id", "visitante_id", name="uq_inscripcion_feria_visitante"),)
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    feria_id: Mapped[str] = mapped_column(ForeignKey("ferias.id", ondelete="CASCADE"))
+    visitante_id: Mapped[str] = mapped_column(ForeignKey("visitantes.id", ondelete="CASCADE"), index=True)
+    creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
+
+    feria: Mapped[Feria] = relationship()
+    visitante: Mapped[Visitante] = relationship()
 
 
 class CodigoVerificacion(Base):

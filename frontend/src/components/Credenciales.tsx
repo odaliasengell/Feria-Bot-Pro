@@ -1,11 +1,11 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { Building2, MapPin, Printer } from 'lucide-react';
-import type { Empresa, Visitante } from '../types';
-import { qrStand, qrVisitante } from '../lib/utils';
+import type { Empresa, Feria, Visitante } from '../types';
+import { qrStand, qrVisitante, rangoFechas } from '../lib/utils';
 import { Avatar } from './ui';
 
-/** Tarjeta de credencial del visitante con su QR personal. */
-export function TarjetaVisitante({ visitante, imprimible = true }: { visitante: Visitante; imprimible?: boolean }) {
+/** Tarjeta de credencial del visitante con su QR personal para una feria. */
+export function TarjetaVisitante({ visitante, feria, imprimible = true }: { visitante: Visitante; feria?: Feria; imprimible?: boolean }) {
   return (
     <div className="credencial-wrap">
       <article className="credencial printable">
@@ -13,6 +13,12 @@ export function TarjetaVisitante({ visitante, imprimible = true }: { visitante: 
           <span className="brand-mini">FeriaBot Pro</span>
           <span className="credencial-tag">VISITANTE</span>
         </div>
+        {feria && (
+          <div className="credencial-feria">
+            <strong>{feria.nombre}</strong>
+            <span>{rangoFechas(feria.fechaInicio, feria.fechaFin)}</span>
+          </div>
+        )}
         <div className="credencial-qr">
           <QRCodeSVG value={qrVisitante(visitante.codigo)} size={196} level="M" marginSize={0} fgColor="#13304a" />
         </div>

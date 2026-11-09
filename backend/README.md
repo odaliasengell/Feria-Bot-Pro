@@ -43,14 +43,31 @@ app/
   main.py          app, CORS, manejo de errores de validación
   config.py        variables de entorno (.env)
   database.py      engine, sesión y dependencia DB
-  models.py        tablas: organizadores, empresas, visitantes, leads, vistas_ficha
+  models.py        tablas: organizadores, ferias, empresas, visitantes, inscripciones, leads, vistas_ficha
+  migraciones.py   cambios de esquema sobre tablas existentes (se aplican solos al arrancar)
   schemas.py       entrada/salida en camelCase (igual que frontend/src/types.ts)
   security.py      bcrypt, JWT y dependencias de permisos por rol
   seed.py          organizador inicial y datos de demostración
   correo.py        envío por SMTP (Gmail)
   verificacion.py  códigos de verificación: generar, enviar y comprobar
-  routers/         auth, empresas, visitantes, leads, vistas, demo
+  routers/         auth, ferias (+ inscripciones), empresas, visitantes, leads, vistas, demo
 ```
+
+## Ferias
+
+El organizador crea las ferias (nombre, descripción, lugar, fechas e interruptor de inscripciones). Cada feria
+tiene sus propias **empresas** (`empresas.feria_id`) y, por lo tanto, sus leads y vistas de ficha.
+
+- El visitante tiene **una sola cuenta** (un código `FB-XXXXXX`) y se **inscribe** a una o varias ferias
+  (tabla `inscripciones`). Al registrarse elige la feria (`POST /visitantes` con `feriaId`); con su cuenta puede
+  inscribirse a otras (`POST /inscripciones`).
+- Una feria acepta inscripciones (`abierta`) si el interruptor está encendido y aún no pasó `fechaFin`.
+  El organizador puede inscribir aunque esté cerrada.
+- Una empresa solo puede escanear (y guardar leads de) visitantes inscritos en su feria; el visitante solo
+  guarda en su historial fichas de ferias en las que está inscrito. Si no, la API responde 403.
+- Al borrar una feria se borran sus empresas, leads, vistas e inscripciones; las cuentas de visitante quedan.
+- Al actualizar desde una versión sin ferias, el arranque crea la «Feria principal» con las empresas y
+  visitantes que ya existían.
 
 ## Autenticación
 
@@ -108,21 +125,26 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 
 | Método y ruta | Quién | Notas |
 | --- | --- | --- |
-| `GET /empresas` · `GET /empresas/:id` | Público | Ficha pública del stand |
-| `POST /empresas` | Organizador | Acepta `password` opcional para el acceso de la empresa |
+| `GET /ferias?activas=true` · `GET /ferias/:id` | Público | Con `abierta`, `totalEmpresas` y `totalVisitantes` |
+| `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas }` |
+| `GET /inscripciones?visitanteId=&feriaId=` | Organizador, el propio visitante | Con la `feria` embebida |
+| `POST /inscripciones` | Visitante, organizador | `{ feriaId }` (el organizador agrega `visitanteId`); si ya estaba inscrito devuelve la misma |
+| `DELETE /inscripciones/:feriaId/:visitanteId` | Organizador | Quita de la feria y borra sus leads y vistas en ella |
+| `GET /empresas?feriaId=` · `GET /empresas/:id` | Público | Ficha pública del stand |
+| `POST /empresas` | Organizador | Requiere `feriaId`; acepta `password` opcional para el acceso de la empresa |
 | `PATCH /empresas/:id` | Organizador, o la propia empresa | Cambios parciales; `password` cambia la contraseña |
 | `DELETE /empresas/:id` | Organizador | Borra en cascada sus leads y vistas |
-| `GET /visitantes` | Organizador | |
-| `GET /visitantes/buscar?q=` | Organizador, empresa | Por código, contenido del QR o correo |
+| `GET /visitantes?feriaId=` | Organizador | Con `feriaId`, solo los inscritos |
+| `GET /visitantes/buscar?q=` | Organizador, empresa | Por código, contenido del QR o correo. A la empresa le da 403 si no está inscrito en su feria |
 | `GET /visitantes/:id` | Organizador, o el propio visitante | |
-| `POST /visitantes` | Público | Registro al ingresar; genera el código `FB-XXXXXX`. Con correo exige `codigoVerificacion` (salvo el organizador) |
+| `POST /visitantes` | Público | Registro en una feria (`feriaId`, debe estar abierta); genera el código `FB-XXXXXX`. Con correo exige `codigoVerificacion`. Si el organizador usa un correo existente, inscribe esa cuenta |
 | `POST /auth/enviar-codigo` | Público | Envía el código de 6 dígitos al correo (`registro` o `ingreso`) |
 | `DELETE /visitantes/:id` | Organizador | Borra en cascada sus leads y vistas |
-| `GET /leads?empresaId=&visitanteId=` | Con sesión | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |
+| `GET /leads?empresaId=&visitanteId=&feriaId=` | Con sesión | Con `visitante` y `empresa` embebidos. La empresa solo ve los suyos y el visitante los propios |
 | `GET /leads/:empresaId/:visitanteId` | Organizador, la propia empresa | 404 si no existe |
 | `PUT /leads` | Organizador, la propia empresa | `{ empresaId, visitanteId, calificacion, nota }`; crea o actualiza (uno por empresa + visitante) |
 | `POST /vistas` | Organizador, el propio visitante | `{ visitanteId, empresaId }`; si ya existía actualiza la fecha |
-| `GET /vistas?visitanteId=&empresaId=` | Con sesión | Con `empresa` y `visitante` embebidos; mismo alcance que leads |
+| `GET /vistas?visitanteId=&empresaId=&feriaId=` | Con sesión | Con `empresa` y `visitante` embebidos; mismo alcance que leads |
 | `POST /demo/reiniciar` | Organizador | Solo con `DEMO_MODE=true` |
 
 Errores: `{ "detail": "mensaje" }` con 401 (sin sesión), 403 (sin permiso), 404, 409 (correo repetido)

@@ -633,3 +633,42 @@ textarea.input { resize: vertical; min-height: 44px; }
   .printable { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); box-shadow: none; border: 1px solid #ccc; }
   .no-print { display: none !important; }
 }
+
+/* ---------- Ferias ---------- */
+.mt { margin-top: 24px; }
+.feria-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -16px 0 28px; padding: 10px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-subtle); }
+.feria-bar-label { font-size: 0.82rem; font-weight: 700; color: var(--slate); }
+.feria-bar-select { flex: 1; min-width: 0; max-width: 420px; }
+.feria-card.is-current { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), var(--shadow-subtle); }
+.feria-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.feria-card-title { font-family: var(--font-display); font-size: 1.25rem; letter-spacing: -0.02em; margin: 0 0 6px; }
+.feria-card-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.feria-card-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.feria-card-desc { margin: 10px 0 0; color: var(--slate); font-size: 0.9rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.company-meta span svg { vertical-align: -1px; }
+
+.switch-row { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600; user-select: none; }
+.switch-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch { position: relative; width: 38px; height: 22px; flex: none; border-radius: var(--pill); background: var(--frost); transition: background 0.15s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--paper); box-shadow: var(--shadow-subtle); transition: transform 0.15s; }
+.switch-row input:checked + .switch { background: var(--moss); }
+.switch-row input:checked + .switch::after { transform: translateX(16px); }
+.switch-row input:focus-visible + .switch { box-shadow: 0 0 0 3px rgba(112, 255, 175, 0.6); }
+
+.feria-list { list-style: none; padding: 0; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.feria-option { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-subtle); color: var(--ink); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.feria-option:hover, .feria-option:focus-visible { border-color: var(--ink); box-shadow: var(--shadow-md); outline: none; }
+.feria-option strong { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+.feria-option-desc { display: block; margin-top: 6px; color: var(--slate); font-size: 0.88rem; }
+.feria-elegida, .feria-oferta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin: 8px 0 16px; background: var(--mint-soft); border: 1px solid var(--line); border-radius: var(--r); }
+.feria-elegida .grow, .feria-oferta .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feria-elegida strong, .feria-oferta strong { font-size: 1.05rem; }
+.feria-oferta { margin: 0 0 20px; }
+.feria-tabs { margin-bottom: 20px; }
+
+.credencial-feria { display: flex; flex-direction: column; gap: 2px; margin: -4px 20px 14px; padding: 8px 10px; background: var(--canvas); border-radius: var(--r); }
+.credencial-feria strong { font-size: 0.92rem; }
+.credencial-feria span { font-size: 0.78rem; color: var(--pebble); font-family: var(--font-mono); }
+
+.ficha-feria { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
+.ficha-inscribir { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

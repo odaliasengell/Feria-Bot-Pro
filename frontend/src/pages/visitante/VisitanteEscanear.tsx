@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Search } from 'lucide-react';
-import { empresasApi } from '../../services/api';
+import { empresasApi, inscripcionesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { leerQrStand, normalizar } from '../../lib/utils';
 import { Alert, Avatar, Card, PageHeader } from '../../components/ui';
@@ -12,12 +12,18 @@ export default function VisitanteEscanear() {
   const [activo, setActivo] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const { data: empresas } = useAsync(() => empresasApi.listar(), []);
+  // Solo las empresas de las ferias en las que está inscrito.
+  const { data } = useAsync(() => Promise.all([empresasApi.listar(), inscripcionesApi.listar()]), []);
+  const [empresas, inscripciones] = data ?? [[], []];
+  const variasFerias = inscripciones.length > 1;
+  const nombreFeria = useMemo(() => new Map(inscripciones.map((i) => [i.feriaId, i.feria?.nombre ?? ''])), [inscripciones]);
 
   const filtradas = useMemo(() => {
     const nq = normalizar(q);
-    return (empresas ?? []).filter((e) => !nq || normalizar([e.nombre, e.rubro, e.stand, ...e.servicios].join(' ')).includes(nq));
-  }, [empresas, q]);
+    return empresas
+      .filter((e) => nombreFeria.has(e.feriaId))
+      .filter((e) => !nq || normalizar([e.nombre, e.rubro, e.stand, ...e.servicios].join(' ')).includes(nq));
+  }, [empresas, nombreFeria, q]);
 
   function onResult(texto: string) {
     const id = leerQrStand(texto);
@@ -61,7 +67,10 @@ export default function VisitanteEscanear() {
                 <Avatar nombre={e.nombre} src={e.logo} size={42} square />
                 <div className="grow">
                   <strong>{e.nombre}</strong>
-                  <span className="muted small">{e.rubro}</span>
+                  <span className="muted small">
+                    {e.rubro}
+                    {variasFerias && ` · ${nombreFeria.get(e.feriaId)}`}
+                  </span>
                 </div>
                 <span className="stand-tag">
                   <MapPin size={12} /> {e.stand}
@@ -69,6 +78,7 @@ export default function VisitanteEscanear() {
               </li>
             ))}
           </ul>
+          {data && filtradas.length === 0 && <p className="muted small center">{q ? 'Sin resultados.' : 'Tus ferias aún no tienen empresas.'}</p>}
         </Card>
       </div>
     </>

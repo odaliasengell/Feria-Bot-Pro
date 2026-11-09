@@ -8,13 +8,15 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .routers import auth, demo, empresas, leads, visitantes, vistas
+from .migraciones import migrar
+from .routers import auth, demo, empresas, ferias, leads, visitantes, vistas
 from .seed import crear_organizador_inicial
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
+    migrar(engine)
     with SessionLocal() as db:
         crear_organizador_inicial(db)
     yield
@@ -40,7 +42,7 @@ async def error_validacion(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": "; ".join(partes), "errors": jsonable_encoder(exc.errors())})
 
 
-for r in (auth, empresas, visitantes, leads, vistas, demo):
+for r in (auth, ferias, empresas, visitantes, leads, vistas, demo):
     app.include_router(r.router)
 
 

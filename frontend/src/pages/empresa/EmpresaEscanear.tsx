@@ -87,7 +87,7 @@ export default function EmpresaEscanear() {
             <input className="input" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="O escribe el código: FB-XXXXXX" />
             <button className="btn btn-primary" disabled={!manual.trim()}>Buscar</button>
           </form>
-          <p className="muted small center">Prueba con FB-7K3PQX, FB-M4R8TZ o FB-C5P4RN</p>
+          <p className="muted small center">Solo se aceptan visitantes inscritos en tu feria. Demo: FB-7K3PQX, FB-M4R8TZ o FB-C5P4RN</p>
         </div>
 
         <div className="scan-col">

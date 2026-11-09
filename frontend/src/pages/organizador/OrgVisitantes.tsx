@@ -1,15 +1,23 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Download, IdCard, Plus, Search, Trash2, Users } from 'lucide-react';
-import type { Visitante } from '../../types';
-import { leadsApi, visitantesApi } from '../../services/api';
+import type { Feria, Visitante } from '../../types';
+import { inscripcionesApi, leadsApi, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { descargarCSV, fecha, normalizar } from '../../lib/utils';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
 import { TarjetaVisitante } from '../../components/Credenciales';
+import { ConFeria } from '../../components/FeriaSelector';
 import FormVisitante, { visitanteVacio } from './FormVisitante';
 
 export default function OrgVisitantes() {
-  const { data, cargando, recargar } = useAsync(() => Promise.all([visitantesApi.listar(), leadsApi.listar()]), []);
+  return <ConFeria>{(feria) => <VisitantesFeria feria={feria} />}</ConFeria>;
+}
+
+function VisitantesFeria({ feria }: { feria: Feria }) {
+  const { data, cargando, recargar } = useAsync(
+    () => Promise.all([visitantesApi.listar(feria.id), leadsApi.listar({ feriaId: feria.id })]),
+    [feria.id],
+  );
   const [q, setQ] = useState('');
   const [nuevo, setNuevo] = useState(false);
   const [tarjeta, setTarjeta] = useState<Visitante | null>(null);
@@ -21,13 +29,13 @@ export default function OrgVisitantes() {
   }, [visitantes, q]);
 
   async function eliminar(v: Visitante) {
-    if (!confirm(`¿Eliminar a ${v.nombre}?`)) return;
-    await visitantesApi.eliminar(v.id);
+    if (!confirm(`¿Quitar a ${v.nombre} de «${feria.nombre}»? También se borrarán sus leads en esta feria. Su cuenta se conserva.`)) return;
+    await inscripcionesApi.quitar(feria.id, v.id);
     recargar();
   }
 
   function exportar() {
-    descargarCSV('visitantes.csv', [
+    descargarCSV(`visitantes-${feria.nombre}.csv`, [
       ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro'],
       ...filtrados.map((v) => [v.codigo, v.nombre, v.telefono, v.email, v.empresa, v.ciudad, fecha(v.creadoEn)]),
     ]);
@@ -37,7 +45,7 @@ export default function OrgVisitantes() {
     <>
       <PageHeader
         title="Visitantes"
-        subtitle="Registra a los visitantes en la entrada y entrega su tarjeta con QR personal."
+        subtitle={`Inscritos en «${feria.nombre}». Registra a los visitantes en la entrada y entrega su tarjeta con QR personal.`}
         actions={
           <button className="btn btn-teal" onClick={() => setNuevo(true)}>
             <Plus size={17} /> Registrar visitante
@@ -59,7 +67,7 @@ export default function OrgVisitantes() {
             </button>
           </div>
           {filtrados.length === 0 ? (
-            <EmptyState icon={<Users />} title={visitantes.length ? 'Sin resultados' : 'Aún no hay visitantes'} />
+            <EmptyState icon={<Users />} title={visitantes.length ? 'Sin resultados' : 'Aún no hay visitantes inscritos'} />
           ) : (
             <div className="table-scroll">
               <table className="table">
@@ -98,7 +106,7 @@ export default function OrgVisitantes() {
                           <button className="btn btn-ghost btn-sm" onClick={() => setTarjeta(v)}>
                             <IdCard size={15} /> Tarjeta
                           </button>
-                          <button className="icon-btn danger" onClick={() => eliminar(v)} aria-label="Eliminar">
+                          <button className="icon-btn danger" onClick={() => eliminar(v)} aria-label="Quitar de la feria" title="Quitar de la feria">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -110,7 +118,7 @@ export default function OrgVisitantes() {
             </div>
           )}
           <div className="table-foot muted small">
-            {filtrados.length} de {visitantes.length} visitantes
+            {filtrados.length} de {visitantes.length} visitantes inscritos
           </div>
         </div>
       )}
@@ -118,6 +126,7 @@ export default function OrgVisitantes() {
       <Modal open={nuevo} onClose={() => setNuevo(false)} title="Registrar visitante">
         {nuevo && (
           <NuevoVisitanteForm
+            feria={feria}
             onCreado={(v) => {
               setNuevo(false);
               setTarjeta(v);
@@ -128,13 +137,13 @@ export default function OrgVisitantes() {
       </Modal>
 
       <Modal open={tarjeta !== null} onClose={() => setTarjeta(null)} title="Tarjeta del visitante">
-        {tarjeta && <TarjetaVisitante visitante={tarjeta} />}
+        {tarjeta && <TarjetaVisitante visitante={tarjeta} feria={feria} />}
       </Modal>
     </>
   );
 }
 
-function NuevoVisitanteForm({ onCreado }: { onCreado: (v: Visitante) => void }) {
+function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: Visitante) => void }) {
   const [form, setForm] = useState(visitanteVacio);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -144,7 +153,7 @@ function NuevoVisitanteForm({ onCreado }: { onCreado: (v: Visitante) => void }) 
     setEnviando(true);
     setError(null);
     try {
-      onCreado(await visitantesApi.crear(form));
+      onCreado(await visitantesApi.crear(feria.id, form));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar');
       setEnviando(false);
@@ -154,6 +163,7 @@ function NuevoVisitanteForm({ onCreado }: { onCreado: (v: Visitante) => void }) 
   return (
     <form onSubmit={enviar} className="stack">
       <FormVisitante value={form} onChange={setForm} />
+      <p className="muted small">Si el correo ya tiene cuenta, se inscribe esa cuenta en «{feria.nombre}» con su mismo código.</p>
       {error && <Alert>{error}</Alert>}
       <button className="btn btn-teal btn-block" disabled={enviando}>
         {enviando ? 'Generando…' : 'Registrar y generar tarjeta QR'}

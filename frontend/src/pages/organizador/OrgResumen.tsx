@@ -1,15 +1,48 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Building2, ContactRound, Eye, RotateCcw, Users } from 'lucide-react';
+import { ArrowRight, Building2, CalendarDays, ContactRound, Eye, RotateCcw, Users } from 'lucide-react';
+import type { Feria } from '../../types';
 import { demoApi, empresasApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
-import { haceCuanto } from '../../lib/utils';
-import { Avatar, Card, Loader, PageHeader, StatCard } from '../../components/ui';
+import { haceCuanto, rangoFechas } from '../../lib/utils';
+import { useFeria } from '../../context/FeriaContext';
+import { ConFeria } from '../../components/FeriaSelector';
+import { Avatar, Card, EmptyState, Loader, PageHeader, StatCard } from '../../components/ui';
 import DistribucionCalificaciones from '../../components/DistribucionCalificaciones';
 
 export default function OrgResumen() {
+  const { ferias, cargando, recargar } = useFeria();
+
+  async function reiniciar() {
+    if (!confirm('¿Restaurar los datos de demostración? Se borrarán todas las ferias y sus datos.')) return;
+    await demoApi.reiniciar();
+    await recargar();
+  }
+
+  if (!cargando && ferias.length === 0)
+    return (
+      <EmptyState icon={<CalendarDays />} title="Bienvenido a FeriaBot Pro">
+        Crea tu primera feria para cargar empresas y abrir el registro de visitantes.
+        <div className="row-gap center-row">
+          <Link to="/organizador/ferias" className="btn btn-primary">Crear feria</Link>
+          <button className="btn btn-ghost" onClick={reiniciar}>
+            <RotateCcw size={15} /> Cargar datos demo
+          </button>
+        </div>
+      </EmptyState>
+    );
+  return <ConFeria>{(feria) => <ResumenFeria feria={feria} onReiniciar={reiniciar} />}</ConFeria>;
+}
+
+function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () => Promise<void> }) {
   const { data, cargando, recargar } = useAsync(
-    () => Promise.all([empresasApi.listar(), visitantesApi.listar(), leadsApi.listar(), vistasApi.listar()]),
-    [],
+    () =>
+      Promise.all([
+        empresasApi.listar(feria.id),
+        visitantesApi.listar(feria.id),
+        leadsApi.listar({ feriaId: feria.id }),
+        vistasApi.listar({ feriaId: feria.id }),
+      ]),
+    [feria.id],
   );
 
   if (cargando && !data) return <Loader />;
@@ -22,16 +55,15 @@ export default function OrgResumen() {
   const max = Math.max(1, ...ranking.map((r) => r.n));
 
   async function reiniciar() {
-    if (!confirm('¿Restaurar los datos de demostración? Se perderán los cambios.')) return;
-    await demoApi.reiniciar();
+    await onReiniciar();
     recargar();
   }
 
   return (
     <>
       <PageHeader
-        title="Resumen de la feria"
-        subtitle="Empresas participantes, visitantes y contactos generados en tiempo real."
+        title={feria.nombre}
+        subtitle={[rangoFechas(feria.fechaInicio, feria.fechaFin), feria.lugar].filter(Boolean).join(' · ')}
         actions={
           <button className="btn btn-ghost btn-sm" onClick={reiniciar}>
             <RotateCcw size={15} /> Datos demo
@@ -41,7 +73,7 @@ export default function OrgResumen() {
 
       <div className="stats-grid">
         <StatCard label="Empresas" value={empresas.length} icon={<Building2 />} tone="blue" />
-        <StatCard label="Visitantes registrados" value={visitantes.length} icon={<Users />} tone="teal" />
+        <StatCard label="Visitantes inscritos" value={visitantes.length} icon={<Users />} tone="teal" hint={feria.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'} />
         <StatCard label="Leads generados" value={leads.length} icon={<ContactRound />} tone="orange" />
         <StatCard label="Fichas consultadas" value={vistas.length} icon={<Eye />} tone="navy" />
       </div>

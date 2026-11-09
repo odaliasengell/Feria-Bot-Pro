@@ -1,7 +1,34 @@
 export type Role = 'organizador' | 'visitante' | 'empresa';
 
+/** Feria creada por el organizador. Empresas, visitantes inscritos y leads pertenecen a una feria. */
+export interface Feria {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  lugar: string;
+  fechaInicio: string; // YYYY-MM-DD
+  fechaFin: string; // YYYY-MM-DD
+  /** Interruptor manual del organizador. */
+  inscripcionesAbiertas: boolean;
+  /** Acepta inscripciones: interruptor encendido y la feria no terminó. */
+  abierta: boolean;
+  totalEmpresas: number;
+  totalVisitantes: number;
+  creadoEn: string;
+}
+
+/** Un visitante (una sola cuenta) inscrito a una feria. */
+export interface Inscripcion {
+  id: string;
+  feriaId: string;
+  visitanteId: string;
+  creadoEn: string;
+  feria?: Feria;
+}
+
 export interface Empresa {
   id: string;
+  feriaId: string;
   nombre: string;
   rubro: string;
   descripcion: string;
@@ -69,5 +96,6 @@ export interface AuthRespuesta {
   session: Session;
 }
 
-export type NuevaEmpresa =Omit<Empresa, 'id' | 'creadoEn'>;
+export type NuevaFeria = Pick<Feria, 'nombre' | 'descripcion' | 'lugar' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas'>;
+export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;

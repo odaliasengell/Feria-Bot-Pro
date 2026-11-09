@@ -10,7 +10,7 @@ router = APIRouter(prefix="/demo", tags=["demo"])
 
 @router.post("/reiniciar", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])
 def reiniciar(db: DB):
-    """Borra empresas, visitantes, leads y vistas y vuelve a cargar los datos de demostración."""
+    """Borra ferias, empresas, visitantes, leads y vistas y vuelve a cargar los datos de demostración."""
     if not settings.demo_mode:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "El modo demo está desactivado.")
     reiniciar_demo(db)

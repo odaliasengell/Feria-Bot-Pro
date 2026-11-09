@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..database import DB
-from ..models import VistaFicha
+from ..models import Empresa, VistaFicha
 from ..schemas import Sesion, VistaDetalleOut, VistaOut, VistaRegistrar
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
 from .empresas import obtener_empresa
+from .ferias import exigir_inscripcion
 from .leads import alcance
 from .visitantes import obtener_visitante
 
@@ -25,7 +26,10 @@ def registrar(
     """El visitante abrió la ficha de una empresa escaneando el QR del stand."""
     solo_propio(sesion, "visitante", data.visitante_id)
     obtener_visitante(db, data.visitante_id)
-    obtener_empresa(db, data.empresa_id)
+    empresa = obtener_empresa(db, data.empresa_id)
+    exigir_inscripcion(
+        db, empresa.feria, data.visitante_id, f"Inscríbete a «{empresa.feria.nombre}» para guardar esta empresa en tu historial."
+    )
 
     vista = db.scalar(
         select(VistaFicha).where(VistaFicha.visitante_id == data.visitante_id, VistaFicha.empresa_id == data.empresa_id)
@@ -45,6 +49,7 @@ def listar(
     sesion: Annotated[Sesion, Depends(requiere())],
     visitante_id: Annotated[str | None, Query(alias="visitanteId")] = None,
     empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
 ):
     empresa_id, visitante_id = alcance(sesion, empresa_id, visitante_id)
     q = (
@@ -56,4 +61,6 @@ def listar(
         q = q.where(VistaFicha.visitante_id == visitante_id)
     if empresa_id:
         q = q.where(VistaFicha.empresa_id == empresa_id)
+    if feria_id:
+        q = q.where(VistaFicha.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id == feria_id)))
     return db.scalars(q).all()

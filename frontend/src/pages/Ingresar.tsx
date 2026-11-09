@@ -16,6 +16,9 @@ const ROLES: { id: Role; label: string; icon: typeof Store; desc: string }[] = [
 export default function Ingresar() {
   const [params] = useSearchParams();
   const inicial = (params.get('rol') as Role) || 'visitante';
+  /** Feria desde la que llegó el visitante (registro con correo ya existente): se le ofrece inscribirse al entrar. */
+  const feriaPendiente = params.get('feria');
+  const destinoVisitante = feriaPendiente ? `/visitante?feria=${encodeURIComponent(feriaPendiente)}` : '/visitante';
   const [rol, setRol] = useState<Role>(ROLES.some((r) => r.id === inicial) ? inicial : 'visitante');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -46,7 +49,7 @@ export default function Ingresar() {
             ? await authApi.empresa(email.trim(), password)
             : await authApi.visitante(codigo.trim());
       login(auth);
-      navigate(`/${rol}`);
+      navigate(rol === 'visitante' ? destinoVisitante : `/${rol}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo ingresar');
     } finally {
@@ -103,7 +106,7 @@ export default function Ingresar() {
             textoBoton="Entrar"
             onVerificar={async (c) => {
               login(await authApi.visitanteCorreo(correoPendiente, c));
-              navigate('/visitante');
+              navigate(destinoVisitante);
             }}
             onReenviar={async () => {
               await authApi.enviarCodigo(correoPendiente, 'ingreso');

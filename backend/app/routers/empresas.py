@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from ..models import Empresa
 from ..schemas import EmpresaActualizar, EmpresaCrear, EmpresaOut, Sesion
 from ..security import hash_password, requiere, solo_propio
 from ..utils import uid
+from .ferias import obtener_feria
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -30,8 +31,11 @@ def _validar_email_libre(db: Session, email: str, excepto: str | None = None) ->
 
 
 @router.get("", response_model=list[EmpresaOut])
-def listar(db: DB):
-    return db.scalars(select(Empresa).order_by(Empresa.nombre)).all()
+def listar(db: DB, feria_id: Annotated[str | None, Query(alias="feriaId")] = None):
+    q = select(Empresa).order_by(Empresa.nombre)
+    if feria_id:
+        q = q.where(Empresa.feria_id == feria_id)
+    return db.scalars(q).all()
 
 
 @router.get("/{empresa_id}", response_model=EmpresaOut)
@@ -44,6 +48,7 @@ def crear(data: EmpresaCrear, db: DB):
     campos = data.model_dump(exclude={"password"})
     campos["email"] = campos["email"].lower()
     _validar_email_libre(db, campos["email"])
+    obtener_feria(db, data.feria_id)
     empresa = Empresa(
         **campos,
         id=uid("emp-"),

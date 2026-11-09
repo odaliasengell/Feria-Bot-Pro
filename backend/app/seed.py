@@ -1,4 +1,4 @@
-"""Usuario organizador inicial y datos de demostración (los mismos de frontend/src/services/seed.ts).
+"""Usuario organizador inicial y datos de demostración.
 
 Uso:
     py -m app.seed            # crea tablas y carga la demo si no hay empresas
@@ -6,14 +6,15 @@ Uso:
 """
 
 import sys
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import CodigoVerificacion, Empresa, Lead, Organizador, Visitante, VistaFicha
+from .migraciones import migrar
+from .models import CodigoVerificacion, Empresa, Feria, Inscripcion, Lead, Organizador, Visitante, VistaFicha
 from .security import hash_password
 from .utils import ahora, uid
 
@@ -41,6 +42,21 @@ def cargar_demo(db: Session) -> None:
     def hace(minutos: int):
         return t0 - timedelta(minutes=minutos)
 
+    hoy = date.today()
+    db.add(Feria(
+        id="feria-demo", nombre="Expo Negocios 2026", lugar="Centro de Convenciones, Quito",
+        descripcion="Feria de negocios con empresas de alimentos, energía, textil, software y agroindustria.",
+        fecha_inicio=hoy, fecha_fin=hoy + timedelta(days=2), inscripciones_abiertas=True,
+        creado_en=hace(60 * 24 * 7),
+    ))
+    db.add(Feria(
+        id="feria-emprende", nombre="Feria de Emprendimiento", lugar="Parque Bicentenario, Quito",
+        descripcion="Emprendimientos locales: gastronomía, artesanía y tecnología.",
+        fecha_inicio=hoy + timedelta(days=30), fecha_fin=hoy + timedelta(days=31), inscripciones_abiertas=True,
+        creado_en=hace(60 * 24 * 2),
+    ))
+    db.flush()
+
     pw = hash_password(PASSWORD_DEMO_EMPRESAS)
     empresas = [
         ("emp-andina", "Café Andino", "Alimentos y bebidas",
@@ -66,7 +82,7 @@ def cargar_demo(db: Session) -> None:
     ]
     for id_, nombre, rubro, desc, servicios, contacto, email, tel, web, stand, horas in empresas:
         db.add(Empresa(
-            id=id_, nombre=nombre, rubro=rubro, descripcion=desc, servicios=servicios,
+            id=id_, feria_id="feria-demo", nombre=nombre, rubro=rubro, descripcion=desc, servicios=servicios,
             contacto_nombre=contacto, email=email, telefono=tel, sitio_web=web, stand=stand,
             logo=None, fotos=[], password_hash=pw, creado_en=hace(60 * horas),
         ))
@@ -84,6 +100,9 @@ def cargar_demo(db: Session) -> None:
         db.add(Visitante(
             id=f"vis-{i + 1}", codigo=codigo, nombre=nombre, telefono=tel, email=email,
             empresa=empresa, ciudad=ciudad, creado_en=hace(60 * 6 - i * 25),
+        ))
+        db.add(Inscripcion(
+            id=f"ins-{i + 1}", feria_id="feria-demo", visitante_id=f"vis-{i + 1}", creado_en=hace(60 * 6 - i * 25),
         ))
     db.flush()
 
@@ -118,19 +137,20 @@ def cargar_demo(db: Session) -> None:
 
 
 def reiniciar_demo(db: Session) -> None:
-    for modelo in (VistaFicha, Lead, CodigoVerificacion, Visitante, Empresa):
+    for modelo in (VistaFicha, Lead, CodigoVerificacion, Inscripcion, Visitante, Empresa, Feria):
         db.execute(delete(modelo))
     cargar_demo(db)
 
 
 def main() -> None:
     Base.metadata.create_all(engine)
+    migrar(engine)
     with SessionLocal() as db:
         crear_organizador_inicial(db)
         if "--reset" in sys.argv:
             reiniciar_demo(db)
             print("Datos de demostración recargados.")
-        elif db.scalar(select(Empresa.id).limit(1)):
+        elif db.scalar(select(Feria.id).limit(1)) or db.scalar(select(Empresa.id).limit(1)):
             print("Ya hay datos; no se cargó la demo. Usa --reset para borrar y recargar.")
         else:
             cargar_demo(db)

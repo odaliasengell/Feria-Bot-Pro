@@ -1,10 +1,10 @@
 """Esquemas de entrada/salida. Se exponen en camelCase para coincidir con frontend/src/types.ts."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 Role = Literal["organizador", "visitante", "empresa"]
@@ -72,6 +72,61 @@ class TokenOut(CamelModel):
     session: Sesion
 
 
+# ---------- Ferias ----------
+
+
+class FeriaBase(CamelModel):
+    nombre: str = Field(min_length=1, max_length=150)
+    descripcion: str = Field(default="", max_length=5000)
+    lugar: str = Field(default="", max_length=255)
+    fecha_inicio: date
+    fecha_fin: date
+    inscripciones_abiertas: bool = True
+
+    @model_validator(mode="after")
+    def _fechas(self):
+        if self.fecha_fin < self.fecha_inicio:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
+        return self
+
+
+class FeriaActualizar(CamelModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=150)
+    descripcion: str | None = Field(default=None, max_length=5000)
+    lugar: str | None = Field(default=None, max_length=255)
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    inscripciones_abiertas: bool | None = None
+
+
+class FeriaOut(FeriaBase):
+    id: str
+    # inscripciones_abiertas y la feria aún no termina
+    abierta: bool
+    total_empresas: int = 0
+    total_visitantes: int = 0
+    creado_en: Fecha
+
+    # Al leer de la base no se vuelve a validar el orden de las fechas.
+    @model_validator(mode="after")
+    def _fechas(self):
+        return self
+
+
+class InscripcionCrear(CamelModel):
+    feria_id: str
+    # Solo el organizador lo indica; el visitante se inscribe a sí mismo.
+    visitante_id: str | None = None
+
+
+class InscripcionOut(CamelModel):
+    id: str
+    feria_id: str
+    visitante_id: str
+    creado_en: Fecha
+    feria: FeriaOut | None = None
+
+
 # ---------- Empresas ----------
 
 
@@ -90,6 +145,7 @@ class EmpresaBase(CamelModel):
 
 
 class EmpresaCrear(EmpresaBase):
+    feria_id: str
     password: Password | None = None
 
 
@@ -110,6 +166,7 @@ class EmpresaActualizar(CamelModel):
 
 class EmpresaOut(EmpresaBase):
     id: str
+    feria_id: str
     email: str
     creado_en: Fecha
 
@@ -118,6 +175,8 @@ class EmpresaOut(EmpresaBase):
 
 
 class VisitanteCrear(CamelModel):
+    # Feria a la que se inscribe al registrarse.
+    feria_id: str
     nombre: str = Field(min_length=1, max_length=150)
     telefono: str = Field(default="", max_length=40)
     email: str = Field(default="", max_length=150)
