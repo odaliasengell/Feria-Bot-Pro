@@ -81,9 +81,6 @@ export default function Landing() {
             </span>
           </Link>
           <div className="topnav-links">
-            <a href="#flujo">Cómo funciona</a>
-            <a href="#recorridos">Recorridos QR</a>
-            <a href="#resultados">Resultados</a>
             <Link to="/ferias">Ferias</Link>
             <Link to="/nosotros">Nosotros</Link>
           </div>
@@ -222,65 +219,6 @@ export default function Landing() {
         </section>
       </div>
 
-      <section className="section" id="recorridos">
-        <div className="section-head">
-          <span className="tag-mint">Dos recorridos QR</span>
-          <h2>Un escaneo, dos resultados.</h2>
-        </div>
-        <div className="qr-band-grid">
-          <article className="qr-path">
-            <div className="qr-path-head">
-              <span className="qr-path-label">
-                <IdCard size={14} /> qr-visitante → empresa
-              </span>
-              <span className="qr-path-dots">
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
-            <pre className="qr-code-block">
-              <span className="c">// en el stand, desde la webapp</span>
-              {'\n'}
-              <span className="k">const</span> visitante = <span className="f">escanear</span>(<span className="s">"FB-7K3PQX"</span>);
-              {'\n'}
-              <span className="f">calificar</span>(visitante, <span className="s">"interesado"</span>);
-              {'\n'}
-              <span className="f">guardarContacto</span>(); <span className="c">// → lead</span>
-            </pre>
-            <div className="qr-path-body">
-              <strong>Escanear → calificar interés → guardar contacto</strong>
-              <p>La empresa obtiene un lead; el visitante ve quién registró su visita.</p>
-            </div>
-          </article>
-          <article className="qr-path">
-            <div className="qr-path-head">
-              <span className="qr-path-label">
-                <Store size={14} /> qr-stand → visitante
-              </span>
-              <span className="qr-path-dots">
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
-            <pre className="qr-code-block">
-              <span className="c">// con la cámara del celular</span>
-              {'\n'}
-              <span className="k">const</span> ficha = <span className="f">abrir</span>(<span className="s">"/ficha/cafe-andino"</span>);
-              {'\n'}
-              <span className="f">conocer</span>(ficha.servicios, ficha.fotos);
-              {'\n'}
-              <span className="f">contactar</span>(ficha.whatsapp);
-            </pre>
-            <div className="qr-path-body">
-              <strong>Escanear → abrir ficha → conocer y contactar</strong>
-              <p>Consulta servicios, fotos, logo y datos del negocio.</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
       <div className="band-paper" id="resultados">
         <section className="section outcome-split">
           <div className="section-head">
@@ -345,9 +283,6 @@ export default function Landing() {
           </div>
           <div className="foot-col">
             <h4>Producto</h4>
-            <a href="#flujo">Cómo funciona</a>
-            <a href="#recorridos">Recorridos QR</a>
-            <a href="#resultados">Resultados</a>
             <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="foot-col">
