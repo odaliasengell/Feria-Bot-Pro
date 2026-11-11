@@ -17,8 +17,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Role } from '../types';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Avatar } from './ui';
+import { useToast } from '../context/ToastContext';
+import { Avatar, Modal } from './ui';
 import { FeriaSelector } from './FeriaSelector';
 
 const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boolean }[]> = {
@@ -54,9 +56,15 @@ const ROL_LABEL: Record<Role, string> = {
 export default function AppLayout({ role }: { role: Role }) {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
-  const salir = () => {
+  const toast = useToast();
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+  /** Los botones de cerrar sesión primero piden confirmación. */
+  const salir = () => setConfirmarSalida(true);
+  const cerrarSesion = () => {
+    setConfirmarSalida(false);
     logout();
     navigate('/');
+    toast.info('Cerraste sesión.');
   };
 
   return (
@@ -117,6 +125,23 @@ export default function AppLayout({ role }: { role: Role }) {
           </NavLink>
         ))}
       </nav>
+
+      <Modal open={confirmarSalida} onClose={() => setConfirmarSalida(false)} title="¿Cerrar sesión?">
+        <div className="stack">
+          <p className="muted">
+            Saldrás de tu cuenta{session?.nombre ? ` (${session.nombre})` : ''} en este dispositivo. Para volver a entrar
+            {role === 'visitante' ? ' necesitarás el código de tu tarjeta o tu correo.' : ' necesitarás tu correo y contraseña.'}
+          </p>
+          <div className="row-gap">
+            <button type="button" className="btn btn-primary" onClick={cerrarSesion}>
+              <LogOut size={16} /> Sí, cerrar sesión
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setConfirmarSalida(false)} autoFocus>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
