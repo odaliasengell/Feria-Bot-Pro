@@ -5,7 +5,10 @@ import { Building2, CalendarDays, Check, Copy, CopyPlus, Link2, MapPin, Pencil, 
 import type { Feria, NuevaFeria } from '../../types';
 import { feriasApi } from '../../services/api';
 import { useFeria } from '../../context/FeriaContext';
+import { mensajeError, useToast } from '../../context/ToastContext';
 import { hoyISO, rangoFechas } from '../../lib/utils';
+import { errorNombre } from '../../lib/validacion';
+import { useValidacion } from '../../lib/useValidacion';
 import { Alert, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 
 function nuevaVacia(): NuevaFeria {
@@ -28,28 +31,28 @@ export default function OrgFerias() {
   const [editando, setEditando] = useState<Feria | 'nueva' | null>(null);
   const [enlace, setEnlace] = useState<Feria | null>(null);
   const [duplicando, setDuplicando] = useState<Feria | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const toast = useToast();
 
   async function alternar(f: Feria) {
-    setError(null);
     try {
       await feriasApi.actualizar(f.id, { inscripcionesAbiertas: !f.inscripcionesAbiertas });
       await recargar();
+      toast.exito(f.inscripcionesAbiertas ? `Inscripciones cerradas en «${f.nombre}».` : `Inscripciones abiertas en «${f.nombre}».`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo actualizar');
+      toast.error(mensajeError(err, 'No se pudo actualizar la feria.'));
     }
   }
 
   async function eliminar(f: Feria) {
     const msg = `¿Eliminar «${f.nombre}»? Se borrarán sus ${f.totalEmpresas} empresas, sus leads y las inscripciones de ${f.totalVisitantes} visitantes. Las cuentas de los visitantes se conservan.`;
     if (!confirm(msg)) return;
-    setError(null);
     try {
       await feriasApi.eliminar(f.id);
       await recargar();
+      toast.exito(`Feria «${f.nombre}» eliminada.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar');
+      toast.error(mensajeError(err, 'No se pudo eliminar la feria.'));
     }
   }
 
@@ -64,8 +67,6 @@ export default function OrgFerias() {
           </button>
         }
       />
-
-      {error && <Alert>{error}</Alert>}
 
       {cargando ? (
         <Loader />
@@ -124,35 +125,38 @@ export default function OrgFerias() {
                   <span className="switch" aria-hidden="true" />
                   <span>Recibir inscripciones</span>
                 </label>
-                <div className="company-actions">
-                  {!esActual ? (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => {
-                        elegir(f.id);
-                        navigate('/organizador');
-                      }}
-                    >
-                      Administrar
+                <div className="feria-card-acciones">
+                  <div className="feria-card-principal">
+                    {!esActual ? (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                          elegir(f.id);
+                          navigate('/organizador');
+                        }}
+                      >
+                        Administrar
+                      </button>
+                    ) : (
+                      <span className="feria-seleccionada">
+                        <Check size={14} /> Seleccionada
+                      </span>
+                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={() => setEnlace(f)}>
+                      <Link2 size={15} /> Enlace de registro
                     </button>
-                  ) : (
-                    <span className="muted small">
-                      <Check size={14} /> Seleccionada
-                    </span>
-                  )}
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEnlace(f)}>
-                    <Link2 size={15} /> Enlace de registro
-                  </button>
-                  <span className="spacer" />
-                  <button className="icon-btn" onClick={() => setDuplicando(f)} aria-label="Duplicar" title="Duplicar">
-                    <CopyPlus size={16} />
-                  </button>
-                  <button className="icon-btn" onClick={() => setEditando(f)} aria-label="Editar" title="Editar">
-                    <Pencil size={16} />
-                  </button>
-                  <button className="icon-btn danger" onClick={() => eliminar(f)} aria-label="Eliminar">
-                    <Trash2 size={16} />
-                  </button>
+                  </div>
+                  <div className="feria-card-iconos">
+                    <button className="icon-btn" onClick={() => setDuplicando(f)} aria-label={`Duplicar ${f.nombre}`} title="Duplicar">
+                      <CopyPlus size={16} />
+                    </button>
+                    <button className="icon-btn" onClick={() => setEditando(f)} aria-label={`Editar ${f.nombre}`} title="Editar">
+                      <Pencil size={16} />
+                    </button>
+                    <button className="icon-btn danger" onClick={() => eliminar(f)} aria-label={`Eliminar ${f.nombre}`} title="Eliminar">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </article>
             );
@@ -168,8 +172,10 @@ export default function OrgFerias() {
               if (editando === 'nueva') {
                 const creada = await feriasApi.crear(datos);
                 elegir(creada.id);
+                toast.exito(`Feria «${creada.nombre}» creada.`);
               } else {
                 await feriasApi.actualizar(editando.id, datos);
+                toast.exito('Cambios guardados.');
               }
               setEditando(null);
               await recargar();
@@ -187,6 +193,7 @@ export default function OrgFerias() {
               setDuplicando(null);
               await recargar();
               elegir(nueva.id);
+              toast.exito(`Feria «${nueva.nombre}» creada a partir de «${duplicando.nombre}».`);
             }}
           />
         )}
@@ -212,13 +219,16 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof NuevaFeria) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const v = useValidacion({
+    nombre: errorNombre(f.nombre, { campo: 'El nombre de la feria' }),
+    fechaInicio: f.fechaInicio ? null : 'Elige la fecha de inicio.',
+    fechaFin: !f.fechaFin ? 'Elige la fecha de fin.' : f.fechaFin < f.fechaInicio ? 'La fecha de fin no puede ser anterior a la de inicio.' : null,
+    aforo: f.aforo !== null && (!Number.isInteger(f.aforo) || f.aforo < 1) ? 'El aforo debe ser un número entero mayor que 0.' : null,
+  });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    if (f.fechaFin < f.fechaInicio) {
-      setError('La fecha de fin no puede ser anterior a la de inicio.');
-      return;
-    }
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
@@ -232,20 +242,22 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
   return (
     <form onSubmit={enviar} className="stack">
       <div className="form-grid">
-        <Field label="Nombre de la feria" full>
-          <input className="input" value={f.nombre} onChange={set('nombre')} required maxLength={150} placeholder="Ej. Expo Negocios 2026" />
+        <Field label="Nombre de la feria" full error={v.error('nombre')}>
+          <input className="input" value={f.nombre} onChange={set('nombre')} onBlur={v.tocar('nombre')} aria-invalid={!!v.error('nombre')} maxLength={150} placeholder="Ej. Expo Negocios 2026" />
         </Field>
-        <Field label="Fecha de inicio">
-          <input className="input" type="date" value={f.fechaInicio} onChange={set('fechaInicio')} required />
+        <Field label="Fecha de inicio" error={v.error('fechaInicio')}>
+          <input className="input" type="date" value={f.fechaInicio} onChange={set('fechaInicio')} onBlur={v.tocar('fechaInicio')} aria-invalid={!!v.error('fechaInicio')} />
         </Field>
-        <Field label="Fecha de fin" hint="Las inscripciones se cierran solas al terminar este día.">
-          <input className="input" type="date" value={f.fechaFin} min={f.fechaInicio} onChange={set('fechaFin')} required />
+        <Field label="Fecha de fin" hint="Las inscripciones se cierran solas al terminar este día." error={v.error('fechaFin')}>
+          <input className="input" type="date" value={f.fechaFin} min={f.fechaInicio} onChange={set('fechaFin')} onBlur={v.tocar('fechaFin')} aria-invalid={!!v.error('fechaFin')} />
         </Field>
-        <Field label="Lugar">
+        <Field label="Lugar" hint="Dirección o recinto; los visitantes la abren en Google Maps." opcional>
           <input className="input" value={f.lugar} onChange={set('lugar')} maxLength={255} placeholder="Ej. Centro de Convenciones, Quito" />
         </Field>
-        <Field label="Aforo" hint="Máximo de visitantes inscritos. Vacío = sin límite.">
+        <Field label="Aforo" hint="Máximo de visitantes inscritos. Vacío = sin límite." error={v.error('aforo')} opcional>
           <input
+            onBlur={v.tocar('aforo')}
+            aria-invalid={!!v.error('aforo')}
             className="input"
             type="number"
             min={1}
@@ -291,13 +303,15 @@ function FormDuplicar({
   const [fechaFin, setFechaFin] = useState(masUnAnio(origen.fechaFin));
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const v = useValidacion({
+    nombre: errorNombre(nombre, { campo: 'El nombre de la feria' }),
+    fechaInicio: fechaInicio ? null : 'Elige la fecha de inicio.',
+    fechaFin: !fechaFin ? 'Elige la fecha de fin.' : fechaFin < fechaInicio ? 'La fecha de fin no puede ser anterior a la de inicio.' : null,
+  });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    if (fechaFin < fechaInicio) {
-      setError('La fecha de fin no puede ser anterior a la de inicio.');
-      return;
-    }
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
@@ -314,18 +328,18 @@ function FormDuplicar({
         Se crea una nueva feria con la descripción, el lugar y el aforo de «{origen.nombre}». Las empresas y los visitantes no se copian.
       </p>
       <div className="form-grid">
-        <Field label="Nombre de la nueva feria" full>
-          <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} required maxLength={150} autoFocus />
+        <Field label="Nombre de la nueva feria" full error={v.error('nombre')}>
+          <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} onBlur={v.tocar('nombre')} aria-invalid={!!v.error('nombre')} maxLength={150} autoFocus />
         </Field>
-        <Field label="Fecha de inicio">
-          <input className="input" type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} required />
+        <Field label="Fecha de inicio" error={v.error('fechaInicio')}>
+          <input className="input" type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} onBlur={v.tocar('fechaInicio')} aria-invalid={!!v.error('fechaInicio')} />
         </Field>
-        <Field label="Fecha de fin">
-          <input className="input" type="date" value={fechaFin} min={fechaInicio} onChange={(e) => setFechaFin(e.target.value)} required />
+        <Field label="Fecha de fin" error={v.error('fechaFin')}>
+          <input className="input" type="date" value={fechaFin} min={fechaInicio} onChange={(e) => setFechaFin(e.target.value)} onBlur={v.tocar('fechaFin')} aria-invalid={!!v.error('fechaFin')} />
         </Field>
       </div>
       {error && <Alert>{error}</Alert>}
-      <button className="btn btn-primary btn-block" disabled={enviando || !nombre.trim()}>
+      <button className="btn btn-primary btn-block" disabled={enviando}>
         <CopyPlus size={16} /> {enviando ? 'Duplicando…' : 'Duplicar feria'}
       </button>
     </form>

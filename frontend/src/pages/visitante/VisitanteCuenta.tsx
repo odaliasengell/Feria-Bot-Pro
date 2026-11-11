@@ -7,6 +7,9 @@ import { miCuentaApi, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { Alert, Card, Field, Loader, Modal, PageHeader } from '../../components/ui';
 import CodigoCorreo from '../../components/CodigoCorreo';
+import { mensajeError, useToast } from '../../context/ToastContext';
+import { errorEmail, errorNombre, errorTelefono } from '../../lib/validacion';
+import { useValidacion } from '../../lib/useValidacion';
 
 /** «Mi cuenta» del visitante: editar datos, cambiar el correo con código y borrar la cuenta. */
 export default function VisitanteCuenta() {
@@ -45,6 +48,14 @@ function DatosPersonales({ visitante, onGuardado }: { visitante: Visitante; onGu
     Object.entries(form).filter(([k, v]) => v.trim() !== inicial[k as keyof typeof inicial]),
   ) as Partial<typeof form>;
   const hayCambios = Object.keys(cambios).length > 0;
+  const toast = useToast();
+  const v = useValidacion({
+    nombre: errorNombre(form.nombre),
+    telefono: errorTelefono(form.telefono, false),
+    ciudad: errorNombre(form.ciudad, { campo: 'La ciudad', requerido: false, max: 100 }),
+    empresa: form.empresa.trim().length > 150 ? 'La empresa admite hasta 150 caracteres.' : null,
+  });
+  const props = (k: Parameters<typeof v.error>[0]) => ({ onBlur: v.tocar(k), 'aria-invalid': !!v.error(k) });
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setGuardado(false);
@@ -53,16 +64,18 @@ function DatosPersonales({ visitante, onGuardado }: { visitante: Visitante; onGu
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
-      const v = await miCuentaApi.actualizar(cambios);
-      onGuardado(v);
-      setForm({ nombre: v.nombre, telefono: v.telefono, empresa: v.empresa, ciudad: v.ciudad });
-      actualizarSesion({ nombre: v.nombre });
+      const actualizado = await miCuentaApi.actualizar(cambios);
+      onGuardado(actualizado);
+      setForm({ nombre: actualizado.nombre, telefono: actualizado.telefono, empresa: actualizado.empresa, ciudad: actualizado.ciudad });
+      actualizarSesion({ nombre: actualizado.nombre });
       setGuardado(true);
+      toast.exito('Tus datos se guardaron.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron guardar los cambios');
+      setError(mensajeError(err, 'No se pudieron guardar los cambios'));
     } finally {
       setEnviando(false);
     }
@@ -72,17 +85,17 @@ function DatosPersonales({ visitante, onGuardado }: { visitante: Visitante; onGu
     <Card title="Datos personales">
       <form className="stack" onSubmit={guardar}>
         <div className="form-grid">
-          <Field label="Nombre completo" full>
-            <input className="input" value={form.nombre} onChange={set('nombre')} required maxLength={150} autoComplete="name" />
+          <Field label="Nombre completo" full error={v.error('nombre')}>
+            <input className="input" value={form.nombre} onChange={set('nombre')} {...props('nombre')} maxLength={150} autoComplete="name" />
           </Field>
-          <Field label="Teléfono">
-            <input className="input" type="tel" value={form.telefono} onChange={set('telefono')} maxLength={40} autoComplete="tel" />
+          <Field label="Teléfono" error={v.error('telefono')}>
+            <input className="input" type="tel" inputMode="tel" value={form.telefono} onChange={set('telefono')} {...props('telefono')} maxLength={40} autoComplete="tel" />
           </Field>
-          <Field label="Ciudad">
-            <input className="input" value={form.ciudad} onChange={set('ciudad')} maxLength={100} autoComplete="address-level2" />
+          <Field label="Ciudad" error={v.error('ciudad')}>
+            <input className="input" value={form.ciudad} onChange={set('ciudad')} {...props('ciudad')} maxLength={100} autoComplete="address-level2" />
           </Field>
-          <Field label="Empresa" hint="Opcional" full>
-            <input className="input" value={form.empresa} onChange={set('empresa')} maxLength={150} autoComplete="organization" />
+          <Field label="Empresa" opcional full error={v.error('empresa')}>
+            <input className="input" value={form.empresa} onChange={set('empresa')} {...props('empresa')} maxLength={150} autoComplete="organization" />
           </Field>
         </div>
         <p className="muted small">
@@ -117,9 +130,12 @@ function CambioCorreo({ visitante, onCambiado }: { visitante: Visitante; onCambi
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const nuevo = email.trim().toLowerCase();
+  const toast = useToast();
+  const v = useValidacion({ email: errorEmail(email) });
 
   async function enviarCodigo(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) return;
     if (nuevo === visitante.email) {
       setError('Ese ya es el correo de tu cuenta.');
       return;
@@ -137,9 +153,10 @@ function CambioCorreo({ visitante, onCambiado }: { visitante: Visitante; onCambi
   }
 
   async function confirmar(codigo: string) {
-    const v = await miCuentaApi.cambiarCorreo(nuevo, codigo);
-    onCambiado(v);
-    setAviso(`Tu correo ahora es ${v.email}.`);
+    const actualizado = await miCuentaApi.cambiarCorreo(nuevo, codigo);
+    onCambiado(actualizado);
+    setAviso(`Tu correo ahora es ${actualizado.email}.`);
+    toast.exito('Correo actualizado.');
     setEmail('');
     setPaso('ver');
   }
@@ -171,13 +188,15 @@ function CambioCorreo({ visitante, onCambiado }: { visitante: Visitante; onCambi
 
       {paso === 'correo' && (
         <form className="stack" onSubmit={enviarCodigo}>
-          <Field label="Correo nuevo" hint="Te enviaremos un código de 6 dígitos para confirmar que es tuyo.">
+          <Field label="Correo nuevo" hint="Te enviaremos un código de 6 dígitos para confirmar que es tuyo." error={v.error('email')}>
             <input
               className="input"
               type="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
+              onBlur={v.tocar('email')}
+              aria-invalid={!!v.error('email')}
               maxLength={150}
               autoComplete="email"
               placeholder="tu@correo.com"
@@ -186,7 +205,7 @@ function CambioCorreo({ visitante, onCambiado }: { visitante: Visitante; onCambi
           </Field>
           {error && <Alert>{error}</Alert>}
           <div className="row-gap">
-            <button className="btn btn-primary" disabled={enviando || !nuevo}>
+            <button className="btn btn-primary" disabled={enviando}>
               {enviando ? 'Enviando código…' : 'Enviar código'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setPaso('ver')} disabled={enviando}>

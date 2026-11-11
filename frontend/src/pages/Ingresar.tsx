@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 import { Alert, Field } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
+import PasswordInput from '../components/PasswordInput';
+import { errorCodigoTarjeta, errorEmail } from '../lib/validacion';
+import { useValidacion } from '../lib/useValidacion';
 
 const ROLES: { id: Role; label: string; icon: typeof Store; desc: string }[] = [
   { id: 'visitante', label: 'Visitante', icon: IdCard, desc: 'Tu tarjeta QR y las empresas que visitaste' },
@@ -30,9 +33,16 @@ export default function Ingresar() {
   const [enviando, setEnviando] = useState(false);
   /** Correo del visitante al que se envió el código para ingresar. */
   const [correoPendiente, setCorreoPendiente] = useState<string | null>(null);
+  const esVisitante = rol === 'visitante';
+  const v = useValidacion({
+    codigo: esVisitante ? errorCodigoTarjeta(codigo) : null,
+    email: esVisitante ? null : errorEmail(email),
+    password: esVisitante || password ? null : 'Escribe tu contraseña.',
+  });
 
   async function entrar(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) return;
     setError(null);
     setEnviando(true);
     try {
@@ -91,6 +101,7 @@ export default function Ingresar() {
                 setRol(r.id);
                 setError(null);
                 setCorreoPendiente(null);
+                v.reiniciar();
               }}
             >
               <r.icon size={22} />
@@ -117,8 +128,21 @@ export default function Ingresar() {
         <form className="auth-form" onSubmit={entrar}>
           {rol === 'visitante' && (
             <>
-              <Field label="Código de tu tarjeta o correo" hint="El código está debajo de tu QR, por ejemplo FB-7K3PQX. Si usas tu correo, te enviaremos un código.">
-                <input className="input" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="FB-XXXXXX o tu@correo.com" required autoFocus />
+              <Field
+                label="Código de tu tarjeta o correo"
+                hint="El código está debajo de tu QR, por ejemplo FB-7K3PQX. Si usas tu correo, te enviaremos un código."
+                error={v.error('codigo')}
+              >
+                <input
+                  className="input"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  onBlur={v.tocar('codigo')}
+                  aria-invalid={!!v.error('codigo')}
+                  placeholder="FB-XXXXXX o tu@correo.com"
+                  autoCapitalize="characters"
+                  autoFocus
+                />
               </Field>
               <p className="muted small">
                 ¿Aún no tienes tarjeta? <Link to="/registro">Regístrate aquí</Link>
@@ -127,11 +151,21 @@ export default function Ingresar() {
           )}
           {rol !== 'visitante' && (
             <>
-              <Field label="Correo" hint={rol === 'empresa' ? 'El correo registrado de tu empresa.' : undefined}>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required autoFocus />
+              <Field label="Correo" hint={rol === 'empresa' ? 'El correo registrado de tu empresa.' : undefined} error={v.error('email')}>
+                <input
+                  className="input"
+                  type="email"
+                  inputMode="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={v.tocar('email')}
+                  aria-invalid={!!v.error('email')}
+                  autoComplete="username"
+                  autoFocus
+                />
               </Field>
-              <Field label="Contraseña" hint={rol === 'empresa' ? 'Te la entrega la organización de la feria.' : undefined}>
-                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+              <Field label="Contraseña" hint={rol === 'empresa' ? 'Te la entrega la organización de la feria.' : undefined} error={v.error('password')}>
+                <PasswordInput value={password} onChange={setPassword} onBlur={v.tocar('password')} invalid={!!v.error('password')} autoComplete="current-password" />
               </Field>
               <p className="muted small">
                 <Link to={`/recuperar?rol=${rol}${email.trim() ? `&email=${encodeURIComponent(email.trim())}` : ''}`}>¿Olvidaste tu contraseña?</Link>

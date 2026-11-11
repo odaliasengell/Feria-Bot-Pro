@@ -7,7 +7,9 @@ import { descargarCSV, fecha, fechaHora, normalizar } from '../../lib/utils';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
 import { TarjetaVisitante } from '../../components/Credenciales';
 import { ConFeria } from '../../components/FeriaSelector';
-import FormVisitante, { visitanteVacio } from './FormVisitante';
+import FormVisitante, { erroresVisitante, visitanteVacio } from './FormVisitante';
+import { useValidacion } from '../../lib/useValidacion';
+import { mensajeError, useToast } from '../../context/ToastContext';
 import AceptoPolitica from '../../components/AceptoPolitica';
 
 export default function OrgVisitantes() {
@@ -27,6 +29,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
   const [q, setQ] = useState('');
   const [nuevo, setNuevo] = useState(false);
   const [tarjeta, setTarjeta] = useState<Visitante | null>(null);
+  const toast = useToast();
 
   const [visitantes, leads, inscripciones] = data ?? [[], [], []];
   /** Hora de entrada a la feria por visitante (control de acceso). */
@@ -41,8 +44,13 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
 
   async function eliminar(v: Visitante) {
     if (!confirm(`¿Quitar a ${v.nombre} de «${feria.nombre}»? También se borrarán sus leads en esta feria. Su cuenta se conserva.`)) return;
-    await inscripcionesApi.quitar(feria.id, v.id);
-    recargar();
+    try {
+      await inscripcionesApi.quitar(feria.id, v.id);
+      toast.exito(`${v.nombre} ya no está inscrito en «${feria.nombre}».`);
+      recargar();
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudo quitar al visitante.'));
+    }
   }
 
   function exportar() {
@@ -172,9 +180,15 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
   const [acepta, setAcepta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const v = useValidacion(erroresVisitante(form));
+  const toast = useToast();
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) {
+      setError('Revisa los campos marcados en rojo.');
+      return;
+    }
     if (!acepta) {
       setError('El visitante debe aceptar la política de privacidad y tratamiento de datos.');
       return;
@@ -182,7 +196,9 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
     setEnviando(true);
     setError(null);
     try {
-      onCreado(await visitantesApi.crear(feria.id, form));
+      const creado = await visitantesApi.crear(feria.id, form);
+      toast.exito(`${creado.nombre} quedó inscrito en «${feria.nombre}».`);
+      onCreado(creado);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar');
       setEnviando(false);
@@ -191,11 +207,11 @@ function NuevoVisitanteForm({ feria, onCreado }: { feria: Feria; onCreado: (v: V
 
   return (
     <form onSubmit={enviar} className="stack">
-      <FormVisitante value={form} onChange={setForm} />
+      <FormVisitante value={form} onChange={setForm} error={v.error} tocar={v.tocar} />
       <AceptoPolitica checked={acepta} onChange={setAcepta} porOrganizador />
       <p className="muted small">Si el correo ya tiene cuenta, se inscribe esa cuenta en «{feria.nombre}» con su mismo código.</p>
       {error && <Alert>{error}</Alert>}
-      <button className="btn btn-teal btn-block" disabled={enviando || !acepta}>
+      <button className="btn btn-teal btn-block" disabled={enviando}>
         {enviando ? 'Generando…' : 'Registrar y generar tarjeta QR'}
       </button>
     </form>

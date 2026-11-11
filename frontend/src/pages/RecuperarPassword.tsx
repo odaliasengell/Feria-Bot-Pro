@@ -5,6 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 import { Alert, Field } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
+import PasswordInput from '../components/PasswordInput';
+import { useToast } from '../context/ToastContext';
+import { errorConfirmacion, errorEmail, errorPassword } from '../lib/validacion';
+import { useValidacion } from '../lib/useValidacion';
 
 type RolConPassword = 'empresa' | 'organizador';
 
@@ -22,9 +26,13 @@ export default function RecuperarPassword() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const correo = email.trim().toLowerCase();
+  const toast = useToast();
+  const vCorreo = useValidacion({ email: errorEmail(email) });
+  const vPass = useValidacion({ password: errorPassword(password), confirmar: errorConfirmacion(password, confirmar) });
 
   async function pedirCodigo(e: FormEvent) {
     e.preventDefault();
+    if (!vCorreo.validar()) return;
     setEnviando(true);
     setError(null);
     try {
@@ -38,9 +46,9 @@ export default function RecuperarPassword() {
   }
 
   async function cambiar(codigo: string) {
-    if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
-    if (password !== confirmar) throw new Error('Las contraseñas no coinciden.');
+    if (!vPass.validar()) throw new Error(errorPassword(password) ?? errorConfirmacion(password, confirmar) ?? 'Revisa la contraseña.');
     login(await authApi.recuperarCambiar(correo, role, codigo, password));
+    toast.exito('Contraseña cambiada. ¡Bienvenido de nuevo!');
     navigate(`/${role}`);
   }
 
@@ -71,8 +79,18 @@ export default function RecuperarPassword() {
 
         {paso === 'correo' ? (
           <form className="auth-form" onSubmit={pedirCodigo}>
-            <Field label="Correo de tu cuenta">
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required autoFocus />
+            <Field label="Correo de tu cuenta" error={vCorreo.error('email')}>
+              <input
+                className="input"
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={vCorreo.tocar('email')}
+                aria-invalid={!!vCorreo.error('email')}
+                autoComplete="username"
+                autoFocus
+              />
             </Field>
             {error && <Alert tone="orange">{error}</Alert>}
             <button className="btn btn-primary btn-lg btn-block" disabled={enviando}>
@@ -97,28 +115,23 @@ export default function RecuperarPassword() {
               setPaso('correo');
             }}
           >
-            <Field label="Nueva contraseña" hint="Mínimo 6 caracteres.">
-              <input
-                className="input"
-                type="password"
+            <Field label="Nueva contraseña" error={vPass.error('password')}>
+              <PasswordInput
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
-                maxLength={72}
+                onChange={setPassword}
+                onBlur={vPass.tocar('password')}
+                invalid={!!vPass.error('password')}
                 autoComplete="new-password"
-                required
+                mostrarFuerza
               />
             </Field>
-            <Field label="Repite la contraseña">
-              <input
-                className="input"
-                type="password"
+            <Field label="Repite la contraseña" error={confirmar && password !== confirmar ? 'Las contraseñas no coinciden.' : vPass.error('confirmar')}>
+              <PasswordInput
                 value={confirmar}
-                onChange={(e) => setConfirmar(e.target.value)}
-                minLength={6}
-                maxLength={72}
+                onChange={setConfirmar}
+                onBlur={vPass.tocar('confirmar')}
+                invalid={!!vPass.error('confirmar') || (!!confirmar && password !== confirmar)}
                 autoComplete="new-password"
-                required
               />
             </Field>
           </CodigoCorreo>

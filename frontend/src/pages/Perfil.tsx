@@ -3,8 +3,10 @@ import { Check, KeyRound, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 import { Alert, Card, Field, PageHeader } from '../components/ui';
-
-const MIN_PASSWORD = 6;
+import PasswordInput from '../components/PasswordInput';
+import { useToast } from '../context/ToastContext';
+import { errorConfirmacion, errorEmail, errorPassword } from '../lib/validacion';
+import { useValidacion } from '../lib/useValidacion';
 
 /** Perfil del organizador y de la empresa (/organizador/perfil y /empresa/perfil): contraseña y correo de ingreso. */
 export default function Perfil() {
@@ -27,13 +29,17 @@ function CambiarPassword() {
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const toast = useToast();
+  const v = useValidacion({
+    actual: actual ? null : 'Escribe tu contraseña actual.',
+    nueva: errorPassword(nueva) ?? (nueva === actual ? 'La nueva contraseña debe ser distinta de la actual.' : null),
+    repetir: errorConfirmacion(nueva, repetir),
+  });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setListo(false);
-    if (nueva.length < MIN_PASSWORD) return setError(`La nueva contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
-    if (nueva !== repetir) return setError('Las contraseñas nuevas no coinciden.');
-    if (nueva === actual) return setError('La nueva contraseña debe ser distinta de la actual.');
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
@@ -41,7 +47,9 @@ function CambiarPassword() {
       setActual('');
       setNueva('');
       setRepetir('');
+      v.reiniciar();
       setListo(true);
+      toast.exito('Contraseña actualizada.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cambiar la contraseña');
     } finally {
@@ -52,14 +60,14 @@ function CambiarPassword() {
   return (
     <Card title="Cambiar contraseña">
       <form className="stack" onSubmit={enviar}>
-        <Field label="Contraseña actual">
-          <input className="input" type="password" value={actual} onChange={(e) => setActual(e.target.value)} required maxLength={72} autoComplete="current-password" />
+        <Field label="Contraseña actual" error={v.error('actual')}>
+          <PasswordInput value={actual} onChange={setActual} onBlur={v.tocar('actual')} invalid={!!v.error('actual')} autoComplete="current-password" />
         </Field>
-        <Field label="Nueva contraseña" hint={`Mínimo ${MIN_PASSWORD} caracteres.`}>
-          <input className="input" type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} required minLength={MIN_PASSWORD} maxLength={72} autoComplete="new-password" />
+        <Field label="Nueva contraseña" error={v.error('nueva')}>
+          <PasswordInput value={nueva} onChange={setNueva} onBlur={v.tocar('nueva')} invalid={!!v.error('nueva')} autoComplete="new-password" mostrarFuerza />
         </Field>
-        <Field label="Repite la nueva contraseña">
-          <input className="input" type="password" value={repetir} onChange={(e) => setRepetir(e.target.value)} required maxLength={72} autoComplete="new-password" />
+        <Field label="Repite la nueva contraseña" error={repetir && nueva !== repetir ? 'Las contraseñas no coinciden.' : v.error('repetir')}>
+          <PasswordInput value={repetir} onChange={setRepetir} onBlur={v.tocar('repetir')} invalid={!!v.error('repetir') || (!!repetir && nueva !== repetir)} autoComplete="new-password" />
         </Field>
         {error && <Alert>{error}</Alert>}
         {listo && (
@@ -68,7 +76,7 @@ function CambiarPassword() {
           </Alert>
         )}
         <div>
-          <button className="btn btn-primary" disabled={enviando || !actual || !nueva || !repetir}>
+          <button className="btn btn-primary" disabled={enviando}>
             <KeyRound size={16} /> {enviando ? 'Guardando…' : 'Cambiar contraseña'}
           </button>
         </div>
@@ -84,9 +92,12 @@ function CambiarCorreo() {
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const toast = useToast();
+  const v = useValidacion({ email: errorEmail(email), password: password ? null : 'Confirma con tu contraseña.' });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     setListo(null);
@@ -96,7 +107,9 @@ function CambiarCorreo() {
       login(await authApi.cambiarCorreo(nuevo, password));
       setEmail('');
       setPassword('');
+      v.reiniciar();
       setListo(nuevo);
+      toast.exito(`Correo actualizado: ahora ingresas con ${nuevo}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cambiar el correo');
     } finally {
@@ -108,11 +121,11 @@ function CambiarCorreo() {
     <Card title="Cambiar correo">
       <form className="stack" onSubmit={enviar}>
         <p className="muted small">Es el correo con el que ingresas al panel. Confirma el cambio con tu contraseña.</p>
-        <Field label="Correo nuevo">
-          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={150} autoComplete="email" placeholder="nuevo@correo.com" />
+        <Field label="Correo nuevo" error={v.error('email')}>
+          <input className="input" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={v.tocar('email')} aria-invalid={!!v.error('email')} maxLength={150} autoComplete="email" placeholder="nuevo@correo.com" />
         </Field>
-        <Field label="Contraseña">
-          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required maxLength={72} autoComplete="current-password" />
+        <Field label="Contraseña" error={v.error('password')}>
+          <PasswordInput value={password} onChange={setPassword} onBlur={v.tocar('password')} invalid={!!v.error('password')} autoComplete="current-password" />
         </Field>
         {error && <Alert>{error}</Alert>}
         {listo && (
@@ -121,7 +134,7 @@ function CambiarCorreo() {
           </Alert>
         )}
         <div>
-          <button className="btn btn-primary" disabled={enviando || !email.trim() || !password}>
+          <button className="btn btn-primary" disabled={enviando}>
             <Mail size={16} /> {enviando ? 'Guardando…' : 'Cambiar correo'}
           </button>
         </div>

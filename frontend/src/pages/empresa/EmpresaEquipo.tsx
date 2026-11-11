@@ -6,8 +6,10 @@ import { empresasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { fecha } from '../../lib/utils';
 import { Alert, Avatar, Card, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
-
-const MIN_PASSWORD = 6;
+import PasswordInput from '../../components/PasswordInput';
+import { mensajeError, useToast } from '../../context/ToastContext';
+import { errorEmail, errorNombre, errorPassword } from '../../lib/validacion';
+import { useValidacion } from '../../lib/useValidacion';
 
 /** «Mi equipo»: la cuenta principal de la empresa agrega y quita vendedores que escanean con su propia cuenta. */
 export default function EmpresaEquipo() {
@@ -31,16 +33,16 @@ export default function EmpresaEquipo() {
 function Equipo({ empresaId }: { empresaId: string }) {
   const { data, cargando, error, recargar } = useAsync(() => empresasApi.usuarios(empresaId), [empresaId]);
   const [agregando, setAgregando] = useState(false);
-  const [errorQuitar, setErrorQuitar] = useState<string | null>(null);
+  const toast = useToast();
 
   async function quitar(u: UsuarioEmpresa) {
     if (!confirm(`¿Quitar a ${u.nombre} del equipo? Ya no podrá ingresar. Los leads que registró se conservan con su nombre.`)) return;
-    setErrorQuitar(null);
     try {
       await empresasApi.quitarUsuario(empresaId, u.id);
+      toast.exito(`${u.nombre} ya no forma parte del equipo.`);
       recargar();
     } catch (err) {
-      setErrorQuitar(err instanceof Error ? err.message : 'No se pudo quitar al vendedor');
+      toast.error(mensajeError(err, 'No se pudo quitar al vendedor.'));
     }
   }
 
@@ -57,8 +59,6 @@ function Equipo({ empresaId }: { empresaId: string }) {
           </button>
         }
       />
-
-      {errorQuitar && <Alert>{errorQuitar}</Alert>}
 
       {cargando && !data ? (
         <Loader />
@@ -95,8 +95,9 @@ function Equipo({ empresaId }: { empresaId: string }) {
         {agregando && (
           <FormVendedor
             empresaId={empresaId}
-            onCreado={() => {
+            onCreado={(nombre) => {
               setAgregando(false);
+              toast.exito(`${nombre} se agregó al equipo.`);
               recargar();
             }}
           />
@@ -106,24 +107,23 @@ function Equipo({ empresaId }: { empresaId: string }) {
   );
 }
 
-function FormVendedor({ empresaId, onCreado }: { empresaId: string; onCreado: () => void }) {
+function FormVendedor({ empresaId, onCreado }: { empresaId: string; onCreado: (nombre: string) => void }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
+  const v = useValidacion({ nombre: errorNombre(nombre), email: errorEmail(email), password: errorPassword(password) });
+
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    if (password.length < MIN_PASSWORD) {
-      setError(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
-      return;
-    }
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
       await empresasApi.agregarUsuario(empresaId, { nombre: nombre.trim(), email: email.trim().toLowerCase(), password });
-      onCreado();
+      onCreado(nombre.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo agregar al vendedor');
       setEnviando(false);
@@ -132,14 +132,14 @@ function FormVendedor({ empresaId, onCreado }: { empresaId: string; onCreado: ()
 
   return (
     <form className="stack" onSubmit={enviar}>
-      <Field label="Nombre">
-        <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} required maxLength={150} autoFocus placeholder="Ej. Ana Torres" />
+      <Field label="Nombre" error={v.error('nombre')}>
+        <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} onBlur={v.tocar('nombre')} aria-invalid={!!v.error('nombre')} maxLength={150} autoFocus placeholder="Ej. Ana Torres" />
       </Field>
-      <Field label="Correo" hint="Con este correo ingresará en el portal de empresas.">
-        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={150} autoComplete="off" placeholder="ana@empresa.com" />
+      <Field label="Correo" hint="Con este correo ingresará en el portal de empresas." error={v.error('email')}>
+        <input className="input" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={v.tocar('email')} aria-invalid={!!v.error('email')} maxLength={150} autoComplete="off" placeholder="ana@empresa.com" />
       </Field>
-      <Field label="Contraseña" hint={`Mínimo ${MIN_PASSWORD} caracteres. Compártela con el vendedor.`}>
-        <input className="input" type="text" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={MIN_PASSWORD} maxLength={72} autoComplete="new-password" />
+      <Field label="Contraseña" hint="Compártela con el vendedor; podrá cambiarla en su perfil." error={v.error('password')}>
+        <PasswordInput value={password} onChange={setPassword} onBlur={v.tocar('password')} invalid={!!v.error('password')} autoComplete="new-password" mostrarFuerza visibleInicial />
       </Field>
       {error && <Alert>{error}</Alert>}
       <button className="btn btn-primary btn-block" disabled={enviando}>

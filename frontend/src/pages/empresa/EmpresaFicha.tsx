@@ -7,6 +7,9 @@ import { empresasApi } from '../../services/api';
 import { redimensionarImagen } from '../../lib/utils';
 import { Alert, Avatar, Card, Field, Loader, PageHeader } from '../../components/ui';
 import { CartelStand } from '../../components/Credenciales';
+import { mensajeError, useToast } from '../../context/ToastContext';
+import { errorEmail, errorNombre, errorTelefono, errorUrl } from '../../lib/validacion';
+import { useValidacion } from '../../lib/useValidacion';
 
 const MAX_FOTOS = 3;
 
@@ -19,11 +22,23 @@ export default function EmpresaFicha() {
   const logoRef = useRef<HTMLInputElement>(null);
   const fotosRef = useRef<HTMLInputElement>(null);
 
+  const toast = useToast();
+  // Los hooks van antes del `return <Loader />`: con la ficha aún sin cargar no hay errores que mostrar.
+  const v = useValidacion({
+    nombre: f ? errorNombre(f.nombre, { campo: 'El nombre' }) : null,
+    rubro: f ? errorNombre(f.rubro, { campo: 'El rubro', max: 100 }) : null,
+    contactoNombre: f ? errorNombre(f.contactoNombre, { campo: 'La persona de contacto', requerido: false }) : null,
+    telefono: f ? errorTelefono(f.telefono) : null,
+    email: f ? errorEmail(f.email) : null,
+    sitioWeb: f ? errorUrl(f.sitioWeb ?? '') : null,
+  });
+
   useEffect(() => {
     if (session?.refId) empresasApi.obtener(session.refId).then(setF);
   }, [session?.refId]);
 
   if (!f) return <Loader />;
+  const props = (k: Parameters<typeof v.error>[0]) => ({ onBlur: v.tocar(k), 'aria-invalid': !!v.error(k) });
 
   const set = (k: keyof Empresa) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setF({ ...f, [k]: e.target.value });
@@ -65,6 +80,10 @@ export default function EmpresaFicha() {
   async function guardar(e: FormEvent) {
     e.preventDefault();
     if (!f) return;
+    if (!v.validar()) {
+      toast.error('Revisa los campos marcados en rojo antes de guardar.');
+      return;
+    }
     setEstado('guardando');
     setError(null);
     try {
@@ -73,8 +92,9 @@ export default function EmpresaFicha() {
       void _f;
       await empresasApi.actualizar(id, datos);
       setEstado('ok');
+      toast.exito('Ficha guardada. Los visitantes ya ven los cambios.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar');
+      setError(mensajeError(err, 'No se pudo guardar'));
       setEstado('idle');
     }
   }
@@ -109,11 +129,11 @@ export default function EmpresaFicha() {
               </button>
               <input ref={logoRef} type="file" accept="image/*" hidden onChange={(e) => subirLogo(e.target.files)} />
               <div className="form-grid grow">
-                <Field label="Nombre">
-                  <input className="input" value={f.nombre} onChange={set('nombre')} required />
+                <Field label="Nombre" error={v.error('nombre')}>
+                  <input className="input" value={f.nombre} onChange={set('nombre')} {...props('nombre')} maxLength={150} />
                 </Field>
-                <Field label="Rubro">
-                  <input className="input" value={f.rubro} onChange={set('rubro')} required />
+                <Field label="Rubro" error={v.error('rubro')}>
+                  <input className="input" value={f.rubro} onChange={set('rubro')} {...props('rubro')} maxLength={100} />
                 </Field>
               </div>
             </div>
@@ -161,17 +181,17 @@ export default function EmpresaFicha() {
 
           <Card title="Contacto">
             <div className="form-grid">
-              <Field label="Persona de contacto">
-                <input className="input" value={f.contactoNombre} onChange={set('contactoNombre')} />
+              <Field label="Persona de contacto" error={v.error('contactoNombre')}>
+                <input className="input" value={f.contactoNombre} onChange={set('contactoNombre')} {...props('contactoNombre')} maxLength={150} />
               </Field>
-              <Field label="Teléfono / WhatsApp">
-                <input className="input" type="tel" value={f.telefono} onChange={set('telefono')} required />
+              <Field label="Teléfono / WhatsApp" error={v.error('telefono')}>
+                <input className="input" type="tel" inputMode="tel" value={f.telefono} onChange={set('telefono')} {...props('telefono')} maxLength={40} />
               </Field>
-              <Field label="Correo">
-                <input className="input" type="email" value={f.email} onChange={set('email')} required />
+              <Field label="Correo" hint="También es el correo con el que ingresas a tu panel." error={v.error('email')}>
+                <input className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} {...props('email')} maxLength={150} />
               </Field>
-              <Field label="Sitio web">
-                <input className="input" type="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} placeholder="https://" />
+              <Field label="Sitio web" opcional error={v.error('sitioWeb')}>
+                <input className="input" type="url" inputMode="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} {...props('sitioWeb')} maxLength={255} placeholder="https://" />
               </Field>
             </div>
           </Card>

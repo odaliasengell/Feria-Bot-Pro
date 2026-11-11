@@ -114,8 +114,8 @@ function Detalle({ feria }: { feria: FeriaPublica }) {
       <section className="feria-det-empresas">
         <h2>Empresas participantes</h2>
         {feria.empresas.length === 0 ? (
-          <EmptyState icon={<Store />} title="Aún no hay empresas">
-            Las empresas aparecerán aquí cuando el organizador las registre.
+          <EmptyState icon={<Store />} title="Empresas por confirmar">
+            Pronto publicaremos las empresas que participarán en esta feria. Vuelve a revisar más adelante.
           </EmptyState>
         ) : (
           <ul className="empresas-pub-grid">

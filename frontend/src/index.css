@@ -804,3 +804,53 @@ textarea.input { resize: vertical; min-height: 44px; }
 
 .ficha-feria { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
 .ficha-inscribir { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Validación de formularios ---------- */
+.field-opcional { font-weight: 500; color: var(--fog); }
+.field-error { display: flex; align-items: flex-start; gap: 5px; font-size: 0.8rem; font-weight: 600; color: var(--crimson); line-height: 1.35; }
+.field-error svg { flex: none; margin-top: 1px; }
+.field.has-error .input { border-color: var(--crimson); background: #fffafa; }
+.field.has-error .input:focus { box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.18); border-color: var(--crimson); }
+
+.password-wrap { position: relative; }
+.password-wrap .input { padding-right: 42px; }
+.password-toggle { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; color: var(--pebble); border-radius: var(--r); cursor: pointer; }
+.password-toggle:hover { color: var(--ink); background: rgba(10, 14, 28, 0.06); }
+
+.fuerza { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; margin-top: 2px; }
+.fuerza-barra { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.fuerza-barra span { height: 5px; border-radius: 3px; background: var(--line); transition: background 0.2s; }
+.fuerza-barra[data-nivel="0"] span.on, .fuerza-barra[data-nivel="1"] span.on { background: var(--crimson); }
+.fuerza-barra[data-nivel="2"] span.on { background: #d4a106; }
+.fuerza-barra[data-nivel="3"] span.on { background: #2f9e5b; }
+.fuerza-barra[data-nivel="4"] span.on { background: var(--moss); }
+.fuerza-etiqueta { font-size: 0.78rem; color: var(--pebble); white-space: nowrap; }
+.fuerza-etiqueta[data-nivel="0"] b, .fuerza-etiqueta[data-nivel="1"] b { color: var(--crimson); }
+.fuerza-etiqueta[data-nivel="2"] b { color: var(--amber-ink); }
+.fuerza-etiqueta[data-nivel="3"] b, .fuerza-etiqueta[data-nivel="4"] b { color: var(--moss); }
+.fuerza-consejo { grid-column: 1 / -1; font-size: 0.78rem; font-weight: 600; color: var(--crimson); }
+.fuerza-requisitos { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; font-size: 0.76rem; color: var(--fog); }
+.fuerza-requisitos li { display: flex; align-items: center; gap: 4px; }
+.fuerza-requisitos li.ok { color: var(--moss); }
+@media (max-width: 480px) { .fuerza-requisitos { grid-template-columns: 1fr; } }
+
+/* ---------- Avisos emergentes ---------- */
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--moss); border-radius: var(--r); box-shadow: var(--shadow-lg); font-size: 0.9rem; color: var(--ink); animation: toast-entra 0.22s ease-out; }
+.toast-icon { flex: none; margin-top: 1px; }
+.toast-texto { flex: 1; line-height: 1.4; }
+.toast-exito { border-left-color: var(--moss); } .toast-exito .toast-icon { color: var(--moss); }
+.toast-error { border-left-color: var(--crimson); } .toast-error .toast-icon { color: var(--crimson); }
+.toast-info { border-left-color: var(--cobalt); } .toast-info .toast-icon { color: var(--cobalt); }
+.toast-cerrar { flex: none; border: 0; background: transparent; color: var(--fog); width: 24px; height: 24px; display: grid; place-items: center; border-radius: 4px; cursor: pointer; }
+.toast-cerrar:hover { color: var(--ink); background: rgba(10, 14, 28, 0.06); }
+@keyframes toast-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+@media (max-width: 860px) { .toasts { right: 16px; left: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); } }
+
+/* ---------- Tarjetas de feria: acciones ordenadas ---------- */
+.feria-card-acciones { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 14px; border-top: 1px dashed var(--line); }
+.feria-card-principal { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.feria-card-iconos { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.feria-seleccionada { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: var(--r); background: var(--mint-soft); color: var(--moss); font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
+.feria-card-principal .btn { white-space: nowrap; }

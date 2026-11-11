@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import type { Calificacion } from '../types';
 import { CALIFICACIONES, colorDe, iniciales, type Tone } from '../lib/utils';
 
@@ -111,12 +111,40 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   );
 }
 
-export function Field({ label, children, hint, full }: { label: string; children: ReactNode; hint?: string; full?: boolean }) {
+/**
+ * Campo con etiqueta. Con `error` el campo se marca en rojo y el mensaje reemplaza a la ayuda; el input debe llevar
+ * `aria-invalid` (el hook useValidacion lo usa para enfocar el primer campo con error).
+ */
+export function Field({
+  label,
+  children,
+  hint,
+  full,
+  error,
+  opcional,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string;
+  full?: boolean;
+  error?: string | null;
+  /** Agrega «(opcional)» a la etiqueta. */
+  opcional?: boolean;
+}) {
   return (
-    <label className={`field ${full ? 'field-full' : ''}`}>
-      <span className="field-label">{label}</span>
+    <label className={`field ${full ? 'field-full' : ''} ${error ? 'has-error' : ''}`}>
+      <span className="field-label">
+        {label}
+        {opcional && <span className="field-opcional"> (opcional)</span>}
+      </span>
       {children}
-      {hint && <span className="field-hint">{hint}</span>}
+      {error ? (
+        <span className="field-error" role="alert">
+          <AlertCircle size={14} /> {error}
+        </span>
+      ) : (
+        hint && <span className="field-hint">{hint}</span>
+      )}
     </label>
   );
 }

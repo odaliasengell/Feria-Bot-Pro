@@ -6,6 +6,10 @@ import { empresasApi, leadsApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { Alert, Avatar, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 import { CartelStand } from '../../components/Credenciales';
+import PasswordInput from '../../components/PasswordInput';
+import { mensajeError, useToast } from '../../context/ToastContext';
+import { errorEmail, errorNombre, errorPassword, errorTelefono, errorUrl } from '../../lib/validacion';
+import { useValidacion } from '../../lib/useValidacion';
 import { ConFeria } from '../../components/FeriaSelector';
 import ImportarEmpresas from './ImportarEmpresas';
 
@@ -36,11 +40,17 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
   const [editando, setEditando] = useState<Empresa | 'nueva' | null>(null);
   const [qr, setQr] = useState<Empresa | null>(null);
   const [importando, setImportando] = useState(false);
+  const toast = useToast();
 
   async function eliminar(e: Empresa) {
     if (!confirm(`¿Eliminar ${e.nombre}? También se borrarán sus leads.`)) return;
-    await empresasApi.eliminar(e.id);
-    recargar();
+    try {
+      await empresasApi.eliminar(e.id);
+      toast.exito(`Empresa «${e.nombre}» eliminada.`);
+      recargar();
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudo eliminar la empresa.'));
+    }
   }
 
   const [empresas, leads] = data ?? [[], []];
@@ -127,8 +137,13 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
             nueva={editando === 'nueva'}
             onGuardar={async (datos, password) => {
               const conPassword = password ? { ...datos, password } : datos;
-              if (editando === 'nueva') await empresasApi.crear({ ...conPassword, feriaId: feria.id });
-              else await empresasApi.actualizar(editando.id, conPassword);
+              if (editando === 'nueva') {
+                await empresasApi.crear({ ...conPassword, feriaId: feria.id });
+                toast.exito(password ? `Empresa «${datos.nombre}» creada. Le enviamos su acceso por correo.` : `Empresa «${datos.nombre}» creada.`);
+              } else {
+                await empresasApi.actualizar(editando.id, conPassword);
+                toast.exito(password ? 'Cambios guardados y contraseña actualizada.' : 'Cambios guardados.');
+              }
               setEditando(null);
               recargar();
             }}
@@ -169,9 +184,21 @@ function FormEmpresaBasica({
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const set = (k: keyof DatosEmpresa) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const v = useValidacion({
+    nombre: errorNombre(f.nombre, { campo: 'El nombre de la empresa' }),
+    rubro: errorNombre(f.rubro, { campo: 'El rubro', max: 100 }),
+    stand: !f.stand.trim() ? 'El stand es obligatorio.' : f.stand.trim().length > 20 ? 'El stand admite hasta 20 caracteres.' : null,
+    contactoNombre: errorNombre(f.contactoNombre, { campo: 'La persona de contacto' }),
+    telefono: errorTelefono(f.telefono),
+    email: errorEmail(f.email),
+    password: errorPassword(password, nueva),
+    sitioWeb: errorUrl(f.sitioWeb ?? ''),
+  });
+  const props = (k: Parameters<typeof v.error>[0]) => ({ onBlur: v.tocar(k), 'aria-invalid': !!v.error(k) });
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    if (!v.validar()) return;
     setEnviando(true);
     setError(null);
     try {
@@ -185,38 +212,42 @@ function FormEmpresaBasica({
   return (
     <form onSubmit={enviar} className="stack">
       <div className="form-grid">
-        <Field label="Nombre de la empresa" full>
-          <input className="input" value={f.nombre} onChange={set('nombre')} required />
+        <Field label="Nombre de la empresa" full error={v.error('nombre')}>
+          <input className="input" value={f.nombre} onChange={set('nombre')} {...props('nombre')} maxLength={150} />
         </Field>
-        <Field label="Rubro">
-          <input className="input" value={f.rubro} onChange={set('rubro')} required placeholder="Ej. Alimentos y bebidas" />
+        <Field label="Rubro" error={v.error('rubro')}>
+          <input className="input" value={f.rubro} onChange={set('rubro')} {...props('rubro')} maxLength={100} placeholder="Ej. Alimentos y bebidas" />
         </Field>
-        <Field label="Stand">
-          <input className="input" value={f.stand} onChange={set('stand')} required placeholder="A-01" />
+        <Field label="Stand" error={v.error('stand')}>
+          <input className="input" value={f.stand} onChange={set('stand')} {...props('stand')} maxLength={20} placeholder="A-01" />
         </Field>
-        <Field label="Persona de contacto">
-          <input className="input" value={f.contactoNombre} onChange={set('contactoNombre')} required />
+        <Field label="Persona de contacto" error={v.error('contactoNombre')}>
+          <input className="input" value={f.contactoNombre} onChange={set('contactoNombre')} {...props('contactoNombre')} maxLength={150} />
         </Field>
-        <Field label="Teléfono">
-          <input className="input" type="tel" value={f.telefono} onChange={set('telefono')} required />
+        <Field label="Teléfono" error={v.error('telefono')}>
+          <input className="input" type="tel" inputMode="tel" value={f.telefono} onChange={set('telefono')} {...props('telefono')} maxLength={40} placeholder="+593 99 123 4567" />
         </Field>
-        <Field label="Correo" hint="La empresa entra a su panel con este correo.">
-          <input className="input" type="email" value={f.email} onChange={set('email')} required />
+        <Field label="Correo" hint="La empresa entra a su panel con este correo." error={v.error('email')}>
+          <input className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} {...props('email')} maxLength={150} />
         </Field>
-        <Field label="Contraseña de acceso" hint={nueva ? 'Mínimo 6 caracteres. Entrégala a la empresa.' : 'Déjala vacía para no cambiarla.'}>
-          <input
-            className="input"
-            type="text"
+        <Field
+          label="Contraseña de acceso"
+          opcional={!nueva}
+          hint={nueva ? 'Le llegará por correo. Usa una contraseña segura.' : 'Déjala vacía para no cambiarla.'}
+          error={v.error('password')}
+        >
+          <PasswordInput
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={6}
-            maxLength={72}
-            required={nueva}
+            onChange={setPassword}
+            onBlur={v.tocar('password')}
+            invalid={!!v.error('password')}
             autoComplete="new-password"
+            mostrarFuerza
+            visibleInicial
           />
         </Field>
-        <Field label="Sitio web" hint="Opcional">
-          <input className="input" type="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} placeholder="https://" />
+        <Field label="Sitio web" opcional error={v.error('sitioWeb')}>
+          <input className="input" type="url" inputMode="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} {...props('sitioWeb')} maxLength={255} placeholder="https://" />
         </Field>
         <Field label="Datos del negocio" full hint="La empresa podrá ampliar esta descripción en su ficha.">
           <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} />

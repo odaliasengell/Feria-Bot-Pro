@@ -9,7 +9,8 @@ import { rangoFechas } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
 import AceptoPolitica from '../components/AceptoPolitica';
-import FormVisitante, { visitanteVacio } from './organizador/FormVisitante';
+import FormVisitante, { erroresVisitante, visitanteVacio } from './organizador/FormVisitante';
+import { useValidacion } from '../lib/useValidacion';
 
 /**
  * Registro del visitante a una feria creada por el organizador.
@@ -119,6 +120,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   const { login } = useAuth();
   const navigate = useNavigate();
   const email = form.email.trim().toLowerCase();
+  const v = useValidacion(erroresVisitante(form));
 
   async function registrar(codigoVerificacion?: string) {
     const v = await visitantesApi.crear(feria.id, form, codigoVerificacion);
@@ -129,6 +131,11 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   /** Con correo, primero se envía el código y el registro se completa al verificarlo. */
   async function enviar(e: FormEvent) {
     e.preventDefault();
+    const datosOk = v.validar();
+    if (!datosOk) {
+      setError('Revisa los campos marcados en rojo.');
+      return;
+    }
     if (!acepta) {
       setError('Debes aceptar la política de privacidad y tratamiento de datos.');
       return;
@@ -192,7 +199,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
       {resumen}
       <p className="muted">Completa tus datos para recibir tu tarjeta con QR personal.</p>
       <form className="auth-form" onSubmit={enviar}>
-        <FormVisitante value={form} onChange={setForm} />
+        <FormVisitante value={form} onChange={setForm} error={v.error} tocar={v.tocar} />
         <AceptoPolitica checked={acepta} onChange={setAcepta} />
         {error && (
           <Alert tone="orange">
@@ -205,7 +212,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
             )}
           </Alert>
         )}
-        <button className="btn btn-teal btn-lg btn-block" disabled={enviando || !acepta}>
+        <button className="btn btn-teal btn-lg btn-block" disabled={enviando}>
           {enviando ? 'Enviando código…' : 'Continuar'} <ArrowRight size={18} />
         </button>
         <p className="muted small center">
