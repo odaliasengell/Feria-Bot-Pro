@@ -36,7 +36,10 @@ def enviar_recordatorio(db: Session, feria: Feria) -> int:
     enviados = 0
     for v in visitantes:
         try:
-            enviar_recordatorio_feria(v.email, v.nombre, v.codigo, feria.nombre, fechas, feria.lugar)
+            enviar_recordatorio_feria(
+                v.email, v.nombre, v.codigo, feria.nombre, fechas, feria.lugar,
+                portada=feria.portada, portada_alt=feria.portada_alt,
+            )
             enviados += 1
         except Exception:  # noqa: BLE001 — un correo fallido no debe cortar el envío a los demás
             log.exception("No se pudo enviar el recordatorio de %s a %s", feria.id, v.email)

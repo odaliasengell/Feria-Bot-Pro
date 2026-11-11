@@ -9,6 +9,10 @@ export interface Feria {
   nombre: string;
   descripcion: string;
   lugar: string;
+  /** Imagen de portada (data URL o URL https); null = se muestra la portada de respaldo. */
+  portada: string | null;
+  /** Texto alternativo de la portada. */
+  portadaAlt: string;
   fechaInicio: string; // YYYY-MM-DD
   fechaFin: string; // YYYY-MM-DD
   /** Interruptor manual del organizador. */
@@ -152,7 +156,10 @@ export interface AuthRespuesta {
   session: Session;
 }
 
-export type NuevaFeria = Pick<Feria, 'nombre' | 'descripcion' | 'lugar' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas' | 'aforo'>;
+export type NuevaFeria = Pick<
+  Feria,
+  'nombre' | 'descripcion' | 'lugar' | 'portada' | 'portadaAlt' | 'fechaInicio' | 'fechaFin' | 'inscripcionesAbiertas' | 'aforo'
+>;
 export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;
 

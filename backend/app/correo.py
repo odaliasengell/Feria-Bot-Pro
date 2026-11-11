@@ -1,7 +1,9 @@
 import base64
+import binascii
 import html as html_lib
 import io
 import logging
+import re
 import smtplib
 import ssl
 from collections.abc import Callable
@@ -24,8 +26,12 @@ class CorreoError(Exception):
     pass
 
 
-def enviar_correo(destino: str, asunto: str, texto: str, html: str, imagenes: dict[str, bytes] | None = None) -> None:
-    """`imagenes` = {cid: png}: se adjuntan junto al HTML, que las muestra con src="cid:<cid>"."""
+# Imagen adjunta: PNG en bytes, o (bytes, subtipo) para otros formatos ("jpeg", "webp").
+Imagen = bytes | tuple[bytes, str]
+
+
+def enviar_correo(destino: str, asunto: str, texto: str, html: str, imagenes: dict[str, Imagen] | None = None) -> None:
+    """`imagenes` = {cid: imagen}: se adjuntan junto al HTML, que las muestra con src="cid:<cid>"."""
     msg = EmailMessage()
     msg["Subject"] = asunto
     msg["From"] = formataddr((settings.mail_from_name, settings.smtp_user))
@@ -34,8 +40,10 @@ def enviar_correo(destino: str, asunto: str, texto: str, html: str, imagenes: di
     msg.add_alternative(html, subtype="html")
     if imagenes:
         parte_html = msg.get_payload()[1]
-        for cid, png in imagenes.items():
-            parte_html.add_related(png, maintype="image", subtype="png", cid=f"<{cid}>", filename=f"{cid}.png")
+        for cid, imagen in imagenes.items():
+            datos, subtipo = (imagen, "png") if isinstance(imagen, bytes) else imagen
+            extension = "jpg" if subtipo == "jpeg" else subtipo
+            parte_html.add_related(datos, maintype="image", subtype=subtipo, cid=f"<{cid}>", filename=f"{cid}.{extension}")
 
     contexto = ssl.create_default_context()
     try:
@@ -116,12 +124,43 @@ def qr_png(contenido: str) -> bytes:
     return buf.getvalue()
 
 
+_BLOQUE_PORTADA = re.compile(r"[ \t]*<!--PORTADA.*?<!--/PORTADA-->\n?", re.S)
+_DATA_URL = re.compile(r"data:image/(jpeg|png|webp);base64,(.+)", re.S)
+
+
 def _plantilla(nombre: str, variables: dict[str, str]) -> str:
+    """Rellena la plantilla escapando los valores. Sin `portada_src` se quita el bloque de la portada."""
+    texto = (PLANTILLAS / nombre).read_text(encoding="utf-8")
+    if not variables.get("portada_src"):
+        texto = _BLOQUE_PORTADA.sub("", texto)
     seguras = {k: html_lib.escape(str(v)) for k, v in variables.items()}
-    return Template((PLANTILLAS / nombre).read_text(encoding="utf-8")).safe_substitute(seguras)
+    return Template(texto).safe_substitute(seguras)
 
 
-def contenido_bienvenida_visitante(nombre: str, codigo: str, feria: str, fechas: str, qr_src: str = "cid:qr") -> tuple[str, str]:
+def portada_para_correo(portada: str | None) -> tuple[str | None, dict[str, Imagen]]:
+    """(src para el <img>, imágenes a adjuntar). Las data URL se adjuntan (los clientes de correo bloquean
+    `data:` en el HTML); una URL https se enlaza tal cual. Sin portada (o inválida): (None, {})."""
+    if not portada:
+        return None, {}
+    if portada.startswith("https://"):
+        return portada, {}
+    m = _DATA_URL.fullmatch(portada.strip())
+    if not m:
+        return None, {}
+    try:
+        datos = base64.b64decode(m.group(2), validate=True)
+    except (binascii.Error, ValueError):
+        return None, {}
+    return "cid:portada", {"portada": (datos, m.group(1))}
+
+
+def _vars_portada(portada_src: str | None, portada_alt: str, feria: str) -> dict[str, str]:
+    return {"portada_src": portada_src or "", "portada_alt": portada_alt.strip() or f"Portada de {feria}"}
+
+
+def contenido_bienvenida_visitante(
+    nombre: str, codigo: str, feria: str, fechas: str, qr_src: str = "cid:qr", portada_src: str | None = None, portada_alt: str = ""
+) -> tuple[str, str]:
     url = f"{settings.frontend_url.rstrip('/')}/ingresar?rol=visitante"
     texto = (
         f"Hola, {nombre}\n\nYa estás inscrito en {feria} ({fechas}).\n"
@@ -131,25 +170,29 @@ def contenido_bienvenida_visitante(nombre: str, codigo: str, feria: str, fechas:
     html = _plantilla(
         "bienvenida_visitante.html",
         {"nombre": nombre, "codigo": codigo, "feria": feria, "fechas": fechas, "qr_src": qr_src,
-         "url_ingresar": url, "app": settings.mail_from_name},
+         "url_ingresar": url, "app": settings.mail_from_name, **_vars_portada(portada_src, portada_alt, feria)},
     )
     return texto, html
 
 
-def enviar_bienvenida_visitante(destino: str, nombre: str, codigo: str, feria: str, fechas: str) -> None:
+def enviar_bienvenida_visitante(
+    destino: str, nombre: str, codigo: str, feria: str, fechas: str, portada: str | None = None, portada_alt: str = ""
+) -> None:
     """Correo con el código FB-XXXXXX y la imagen del QR (contenido FERIABOT:V:<codigo>)."""
     if not settings.smtp_user:
         print(f"[correo no configurado] Bienvenida para {destino}: tarjeta {codigo} ({feria})", flush=True)
         return
     from .utils import PREFIJO_QR_VISITANTE
 
-    texto, html = contenido_bienvenida_visitante(nombre, codigo, feria, fechas)
-    enviar_correo(
-        destino, f"Tu tarjeta para {feria}: {codigo}", texto, html, imagenes={"qr": qr_png(PREFIJO_QR_VISITANTE + codigo)}
-    )
+    portada_src, imagenes = portada_para_correo(portada)
+    texto, html = contenido_bienvenida_visitante(nombre, codigo, feria, fechas, portada_src=portada_src, portada_alt=portada_alt)
+    imagenes["qr"] = qr_png(PREFIJO_QR_VISITANTE + codigo)
+    enviar_correo(destino, f"Tu tarjeta para {feria}: {codigo}", texto, html, imagenes=imagenes)
 
 
-def contenido_acceso_empresa(empresa: str, email: str, password: str, feria: str, fechas: str) -> tuple[str, str]:
+def contenido_acceso_empresa(
+    empresa: str, email: str, password: str, feria: str, fechas: str, portada_src: str | None = None, portada_alt: str = ""
+) -> tuple[str, str]:
     url = f"{settings.frontend_url.rstrip('/')}/ingresar?rol=empresa"
     texto = (
         f"{empresa} participa en {feria} ({fechas}).\n\n"
@@ -159,22 +202,32 @@ def contenido_acceso_empresa(empresa: str, email: str, password: str, feria: str
     html = _plantilla(
         "acceso_empresa.html",
         {"empresa": empresa, "email": email, "password": password, "feria": feria, "fechas": fechas,
-         "url_ingresar": url, "app": settings.mail_from_name},
+         "url_ingresar": url, "app": settings.mail_from_name, **_vars_portada(portada_src, portada_alt, feria)},
     )
     return texto, html
 
 
-def enviar_acceso_empresa(destino: str, empresa: str, password: str, feria: str, fechas: str) -> None:
+def enviar_acceso_empresa(
+    destino: str, empresa: str, password: str, feria: str, fechas: str, portada: str | None = None, portada_alt: str = ""
+) -> None:
     """Correo a la empresa con su correo de acceso y la contraseña que le asignó el organizador."""
     if not settings.smtp_user:
         print(f"[correo no configurado] Acceso de empresa para {destino} ({empresa}, {feria})", flush=True)
         return
-    texto, html = contenido_acceso_empresa(empresa, destino, password, feria, fechas)
-    enviar_correo(destino, f"Tu acceso a {settings.mail_from_name} para {feria}", texto, html)
+    portada_src, imagenes = portada_para_correo(portada)
+    texto, html = contenido_acceso_empresa(empresa, destino, password, feria, fechas, portada_src, portada_alt)
+    enviar_correo(destino, f"Tu acceso a {settings.mail_from_name} para {feria}", texto, html, imagenes=imagenes)
 
 
 def contenido_recordatorio(
-    nombre: str, codigo: str, feria: str, fechas: str, lugar: str, qr_src: str = "cid:qr"
+    nombre: str,
+    codigo: str,
+    feria: str,
+    fechas: str,
+    lugar: str,
+    qr_src: str = "cid:qr",
+    portada_src: str | None = None,
+    portada_alt: str = "",
 ) -> tuple[str, str]:
     url = f"{settings.frontend_url.rstrip('/')}/ingresar?rol=visitante"
     lugar = lugar or "Por confirmar"
@@ -186,26 +239,37 @@ def contenido_recordatorio(
     html = _plantilla(
         "recordatorio_feria.html",
         {"nombre": nombre, "codigo": codigo, "feria": feria, "fechas": fechas, "lugar": lugar, "qr_src": qr_src,
-         "url_ingresar": url, "app": settings.mail_from_name},
+         "url_ingresar": url, "app": settings.mail_from_name, **_vars_portada(portada_src, portada_alt, feria)},
     )
     return texto, html
 
 
-def enviar_recordatorio_feria(destino: str, nombre: str, codigo: str, feria: str, fechas: str, lugar: str) -> None:
+def enviar_recordatorio_feria(
+    destino: str,
+    nombre: str,
+    codigo: str,
+    feria: str,
+    fechas: str,
+    lugar: str,
+    portada: str | None = None,
+    portada_alt: str = "",
+) -> None:
     """Recordatorio un día antes de la feria, con la tarjeta del visitante (código y QR)."""
     if not settings.smtp_user:
         print(f"[correo no configurado] Recordatorio de {feria} para {destino} ({codigo})", flush=True)
         return
     from .utils import PREFIJO_QR_VISITANTE
 
-    texto, html = contenido_recordatorio(nombre, codigo, feria, fechas, lugar)
-    enviar_correo(destino, f"Mañana empieza {feria}", texto, html, imagenes={"qr": qr_png(PREFIJO_QR_VISITANTE + codigo)})
+    portada_src, imagenes = portada_para_correo(portada)
+    texto, html = contenido_recordatorio(nombre, codigo, feria, fechas, lugar, portada_src=portada_src, portada_alt=portada_alt)
+    imagenes["qr"] = qr_png(PREFIJO_QR_VISITANTE + codigo)
+    enviar_correo(destino, f"Mañana empieza {feria}", texto, html, imagenes=imagenes)
 
 
-def enviar_sin_fallar(funcion: Callable[..., None], *args) -> None:
+def enviar_sin_fallar(funcion: Callable[..., None], *args, **kwargs) -> None:
     """Para tareas en segundo plano: un correo que falla se registra en el log y no afecta al registro."""
     try:
-        funcion(*args)
+        funcion(*args, **kwargs)
     except Exception:  # noqa: BLE001 — cualquier fallo del correo se ignora a propósito
         log.exception("No se pudo enviar el correo (%s)", funcion.__name__)
 
@@ -216,21 +280,43 @@ if __name__ == "__main__":
     #   .\.venv\Scripts\python -m app.correo visitante  (bienvenida con QR)
     #   .\.venv\Scripts\python -m app.correo empresa    (acceso de empresa)
     #   .\.venv\Scripts\python -m app.correo recordatorio (un día antes de la feria)
+    # Con portada: agrega el id de una feria (usa su nombre, fechas, lugar y portada de la base) o la ruta de
+    # una imagen, por ejemplo:  ... app.correo recordatorio feria-abc123   o   ... app.correo visitante foto.jpg
+    import mimetypes
     import sys
     import webbrowser
 
     tipo = sys.argv[1] if len(sys.argv) > 1 else "codigo"
+    extra = sys.argv[2] if len(sys.argv) > 2 else None
+    nombre_feria, lugar = "Expo Negocios 2026", "Centro de Convenciones, Quito"
     fechas = rango_fechas(date(2026, 10, 20), date(2026, 10, 22))
+    portada, alt = None, ""
+    if extra and Path(extra).is_file():
+        mime = mimetypes.guess_type(extra)[0] or "image/jpeg"
+        portada = f"data:{mime};base64," + base64.b64encode(Path(extra).read_bytes()).decode()
+    elif extra:
+        from .database import SessionLocal
+        from .models import Feria
+
+        with SessionLocal() as db:
+            f = db.get(Feria, extra)
+            if not f:
+                sys.exit(f"No existe la feria «{extra}».")
+            nombre_feria, lugar, portada, alt = f.nombre, f.lugar, f.portada, f.portada_alt
+            fechas = rango_fechas(f.fecha_inicio, f.fecha_fin)
+        if not portada:
+            print("Esa feria no tiene portada: el correo se ve sin imagen.")
+    # En la vista previa el navegador sí muestra data URL; en el correo real la portada va adjunta.
+    vista_portada = portada if portada and (portada.startswith("https://") or _DATA_URL.fullmatch(portada)) else None
+    qr = "data:image/png;base64," + base64.b64encode(qr_png("FERIABOT:V:FB-7K3PQX")).decode()
     if tipo == "visitante":
-        qr = "data:image/png;base64," + base64.b64encode(qr_png("FERIABOT:V:FB-7K3PQX")).decode()
-        html = contenido_bienvenida_visitante("María José", "FB-7K3PQX", "Expo Negocios 2026", fechas, qr)[1]
+        html = contenido_bienvenida_visitante("María José", "FB-7K3PQX", nombre_feria, fechas, qr, vista_portada, alt)[1]
     elif tipo == "recordatorio":
-        qr = "data:image/png;base64," + base64.b64encode(qr_png("FERIABOT:V:FB-7K3PQX")).decode()
-        html = contenido_recordatorio(
-            "María José", "FB-7K3PQX", "Expo Negocios 2026", fechas, "Centro de Convenciones, Quito", qr
-        )[1]
+        html = contenido_recordatorio("María José", "FB-7K3PQX", nombre_feria, fechas, lugar, qr, vista_portada, alt)[1]
     elif tipo == "empresa":
-        html = contenido_acceso_empresa("Café Andino", "ventas@cafeandino.com", "cafe2026", "Expo Negocios 2026", fechas)[1]
+        html = contenido_acceso_empresa(
+            "Café Andino", "ventas@cafeandino.com", "cafe2026", nombre_feria, fechas, vista_portada, alt
+        )[1]
     else:
         # Cambia "registro" por "ingreso" o "recuperar" para ver las otras versiones.
         html = contenido_codigo("482915", "registro")[1]

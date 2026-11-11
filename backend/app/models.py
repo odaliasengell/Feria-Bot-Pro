@@ -31,6 +31,9 @@ class Feria(Base):
     nombre: Mapped[str] = mapped_column(String(150))
     descripcion: Mapped[str] = mapped_column(Text)
     lugar: Mapped[str] = mapped_column(String(255), default="")
+    # Imagen de portada opcional (data URL JPEG/PNG/WebP o URL https) y su texto alternativo.
+    portada: Mapped[str | None] = mapped_column(LONGTEXT)
+    portada_alt: Mapped[str] = mapped_column(String(200), default="", server_default="")
     fecha_inicio: Mapped[date] = mapped_column(Date)
     fecha_fin: Mapped[date] = mapped_column(Date, index=True)
     # Interruptor manual del organizador; además la inscripción se cierra sola después de fecha_fin.

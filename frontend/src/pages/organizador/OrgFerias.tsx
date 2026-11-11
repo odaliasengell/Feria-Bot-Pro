@@ -1,18 +1,29 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { Building2, CalendarDays, Check, Copy, CopyPlus, Link2, MapPin, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Check, Copy, CopyPlus, ImagePlus, Link2, MapPin, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
 import type { Feria, NuevaFeria } from '../../types';
 import { feriasApi } from '../../services/api';
 import { useFeria } from '../../context/FeriaContext';
 import { mensajeError, useToast } from '../../context/ToastContext';
-import { hoyISO, rangoFechas } from '../../lib/utils';
+import { hoyISO, portadaDesdeArchivo, rangoFechas } from '../../lib/utils';
+import PortadaFeria from '../../components/PortadaFeria';
 import { errorNombre } from '../../lib/validacion';
 import { useValidacion } from '../../lib/useValidacion';
 import { Alert, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
 
 function nuevaVacia(): NuevaFeria {
-  return { nombre: '', descripcion: '', lugar: '', fechaInicio: hoyISO(), fechaFin: hoyISO(), inscripcionesAbiertas: true, aforo: null };
+  return {
+    nombre: '',
+    descripcion: '',
+    lugar: '',
+    portada: null,
+    portadaAlt: '',
+    fechaInicio: hoyISO(),
+    fechaFin: hoyISO(),
+    inscripcionesAbiertas: true,
+    aforo: null,
+  };
 }
 
 export function enlaceRegistro(feriaId: string): string {
@@ -84,6 +95,7 @@ export default function OrgFerias() {
             const esActual = actual?.id === f.id;
             return (
               <article key={f.id} className={`company-card feria-card ${esActual ? 'is-current' : ''}`}>
+                <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} className="feria-card-portada" />
                 <div className="feria-card-top">
                   <span className={`badge tone-${estado.tone}`}>{estado.label}</span>
                   {f.llena && <span className="badge tone-orange">Llena</span>}
@@ -174,7 +186,9 @@ export default function OrgFerias() {
                 elegir(creada.id);
                 toast.exito(`Feria «${creada.nombre}» creada.`);
               } else {
-                await feriasApi.actualizar(editando.id, datos);
+                // La portada solo viaja si cambió (es una imagen grande).
+                const { portada, ...resto } = datos;
+                await feriasApi.actualizar(editando.id, portada === editando.portada ? resto : datos);
                 toast.exito('Cambios guardados.');
               }
               setEditando(null);
@@ -211,6 +225,8 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
     nombre: inicial.nombre,
     descripcion: inicial.descripcion,
     lugar: inicial.lugar,
+    portada: inicial.portada,
+    portadaAlt: inicial.portadaAlt,
     fechaInicio: inicial.fechaInicio,
     fechaFin: inicial.fechaFin,
     inscripcionesAbiertas: inicial.inscripcionesAbiertas,
@@ -268,6 +284,12 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
             placeholder="Sin límite"
           />
         </Field>
+        <SelectorPortada
+          nombre={f.nombre || 'Nueva feria'}
+          portada={f.portada}
+          portadaAlt={f.portadaAlt}
+          onCambiar={(portada, portadaAlt) => setF((x) => ({ ...x, portada, portadaAlt }))}
+        />
         <Field label="Descripción" full hint="La ven los visitantes al elegir la feria.">
           <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} maxLength={5000} />
         </Field>
@@ -282,6 +304,83 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
         {enviando ? 'Guardando…' : 'Guardar feria'}
       </button>
     </form>
+  );
+}
+
+/** Imagen de portada opcional: subir, cambiar o quitar, con su texto alternativo. */
+function SelectorPortada({
+  nombre,
+  portada,
+  portadaAlt,
+  onCambiar,
+}: {
+  nombre: string;
+  portada: string | null;
+  portadaAlt: string;
+  onCambiar: (portada: string | null, portadaAlt: string) => void;
+}) {
+  const archivoRef = useRef<HTMLInputElement>(null);
+  const [procesando, setProcesando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function elegir(files: FileList | null) {
+    const archivo = files?.[0];
+    if (!archivo) return;
+    setProcesando(true);
+    setError(null);
+    try {
+      onCambiar(await portadaDesdeArchivo(archivo), portadaAlt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo usar esa imagen.');
+    } finally {
+      setProcesando(false);
+      if (archivoRef.current) archivoRef.current.value = '';
+    }
+  }
+
+  return (
+    <div className="field field-full">
+      <span className="field-label">
+        Imagen de portada <span className="field-opcional">(opcional)</span>
+      </span>
+      <div className="portada-editor">
+        <PortadaFeria nombre={nombre} portada={portada} portadaAlt={portadaAlt} variante="detalle" />
+        <div className="portada-editor-acciones">
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => archivoRef.current?.click()} disabled={procesando}>
+            <ImagePlus size={15} /> {procesando ? 'Procesando…' : portada ? 'Cambiar imagen' : 'Subir imagen'}
+          </button>
+          {portada && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onCambiar(null, '')} disabled={procesando}>
+              <Trash2 size={15} /> Quitar
+            </button>
+          )}
+        </div>
+      </div>
+      <input ref={archivoRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => elegir(e.target.files)} />
+      {error ? (
+        <span className="field-error" role="alert">
+          {error}
+        </span>
+      ) : (
+        <span className="field-hint">
+          Horizontal, se recorta a 16:9 (1200×675 px). Usa una imagen propia o con permiso de uso. Sin imagen se muestra una portada con los colores de la marca.
+        </span>
+      )}
+      {portada && (
+        <label className="field">
+          <span className="field-label">
+            Descripción de la imagen <span className="field-opcional">(para lectores de pantalla)</span>
+          </span>
+          <input
+            className="input"
+            value={portadaAlt}
+            onChange={(e) => onCambiar(portada, e.target.value)}
+            maxLength={200}
+            placeholder="Ej. Pabellón principal del Centro de Convenciones"
+          />
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -325,7 +424,7 @@ function FormDuplicar({
   return (
     <form onSubmit={enviar} className="stack">
       <p className="muted small">
-        Se crea una nueva feria con la descripción, el lugar y el aforo de «{origen.nombre}». Las empresas y los visitantes no se copian.
+        Se crea una nueva feria con la descripción, el lugar, la portada y el aforo de «{origen.nombre}». Las empresas y los visitantes no se copian.
       </p>
       <div className="form-grid">
         <Field label="Nombre de la nueva feria" full error={v.error('nombre')}>

@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   Correo a la empresa con su acceso al panel (correo y contraseña asignada por el organizador).
-  Variables: $$empresa, $$feria, $$fechas, $$email, $$password, $$url_ingresar, $$app
+  Variables: $$portada_src, $$portada_alt (bloque PORTADA opcional), $$empresa, $$feria, $$fechas, $$email, $$password, $$url_ingresar, $$app
   Los clientes de correo ignoran <style> y CSS moderno: todo va en style="" y el diseño con tablas.
   Vista previa sin enviar nada:  .\.venv\Scripts\python -m app.correo empresa
 -->
@@ -35,6 +35,13 @@
           <tr>
             <td style="height:4px;line-height:4px;font-size:0;background-color:#70ffaf;">&nbsp;</td>
           </tr>
+          <!--PORTADA: se quita si la feria no tiene imagen de portada-->
+          <tr>
+            <td style="padding:0;font-size:0;line-height:0;">
+              <img src="$portada_src" width="480" alt="$portada_alt" style="display:block;width:100%;max-width:480px;height:auto;border:0;">
+            </td>
+          </tr>
+          <!--/PORTADA-->
 
           <!-- Contenido -->
           <tr>

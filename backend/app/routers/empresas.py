@@ -113,6 +113,7 @@ async def importar(
             tareas.add_task(
                 enviar_sin_fallar, enviar_acceso_empresa,
                 fila.datos["email"], fila.datos["nombre"], fila.datos["password"], feria.nombre, fechas,
+                portada=feria.portada, portada_alt=feria.portada_alt,
             )
     return ImportacionOut(
         creadas=len(resultado.validas),
@@ -143,6 +144,7 @@ def crear(data: EmpresaCrear, db: DB, tareas: BackgroundTasks):
         tareas.add_task(
             enviar_sin_fallar, enviar_acceso_empresa,
             empresa.email, empresa.nombre, data.password, feria.nombre, rango_fechas(feria.fecha_inicio, feria.fecha_fin),
+            portada=feria.portada, portada_alt=feria.portada_alt,
         )
     return empresa
 

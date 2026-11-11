@@ -21,6 +21,21 @@ Fecha = Annotated[
 ]
 Password = Annotated[str, Field(min_length=6, max_length=72)]
 
+# ~1,5 MB en base64: una portada de 1200 px en JPEG pesa bastante menos.
+MAX_PORTADA = 2_000_000
+
+
+def _validar_portada(v: str | None) -> str | None:
+    """Data URL de imagen (jpeg, png o webp) o una URL https; vacío = sin portada."""
+    if v is None or not v.strip():
+        return None
+    v = v.strip()
+    if len(v) > MAX_PORTADA:
+        raise ValueError("La imagen de portada es demasiado grande (máximo 1,5 MB).")
+    if v.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,", "https://")):
+        return v
+    raise ValueError("La portada debe ser una imagen JPG, PNG o WebP.")
+
 
 class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
@@ -94,6 +109,8 @@ class FeriaBase(CamelModel):
     nombre: str = Field(min_length=1, max_length=150)
     descripcion: str = Field(default="", max_length=5000)
     lugar: str = Field(default="", max_length=255)
+    portada: str | None = None
+    portada_alt: str = Field(default="", max_length=200)
     fecha_inicio: date
     fecha_fin: date
     inscripciones_abiertas: bool = True
@@ -106,16 +123,29 @@ class FeriaBase(CamelModel):
             raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
         return self
 
+    @field_validator("portada")
+    @classmethod
+    def _portada(cls, v: str | None) -> str | None:
+        return _validar_portada(v)
+
 
 class FeriaActualizar(CamelModel):
     nombre: str | None = Field(default=None, min_length=1, max_length=150)
     descripcion: str | None = Field(default=None, max_length=5000)
     lugar: str | None = Field(default=None, max_length=255)
+    # Enviar null (o "") quita la portada.
+    portada: str | None = None
+    portada_alt: str | None = Field(default=None, max_length=200)
     fecha_inicio: date | None = None
     fecha_fin: date | None = None
     inscripciones_abiertas: bool | None = None
     # Enviar null quita el límite.
     aforo: int | None = Field(default=None, ge=1, le=1_000_000)
+
+    @field_validator("portada")
+    @classmethod
+    def _portada(cls, v: str | None) -> str | None:
+        return _validar_portada(v)
 
 
 class FeriaDuplicar(CamelModel):
@@ -131,6 +161,12 @@ class FeriaDuplicar(CamelModel):
 
 
 class FeriaOut(FeriaBase):
+    # Ya validada al guardarla; al leer no se vuelve a revisar.
+    @field_validator("portada")
+    @classmethod
+    def _portada(cls, v: str | None) -> str | None:
+        return v
+
     id: str
     # inscripciones_abiertas y la feria aún no termina
     abierta: bool

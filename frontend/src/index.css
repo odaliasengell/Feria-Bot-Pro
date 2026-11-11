@@ -854,3 +854,36 @@ textarea.input { resize: vertical; min-height: 44px; }
 .feria-card-iconos { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .feria-seleccionada { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: var(--r); background: var(--mint-soft); color: var(--moss); font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
 .feria-card-principal .btn { white-space: nowrap; }
+
+/* ---------- Portada de feria ---------- */
+.portada { position: relative; overflow: hidden; aspect-ratio: 16 / 9; background: var(--canvas); border-radius: var(--r); }
+.portada img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.portada-respaldo {
+  --portada-color: var(--ink);
+  display: grid; place-items: center;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1.4px) 0 0 / 14px 14px,
+    linear-gradient(135deg, var(--portada-color) 0%, var(--ink) 100%);
+}
+.portada-respaldo::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--mint-strip); }
+.portada-respaldo span { font-family: var(--font-display); font-weight: 700; font-size: clamp(2rem, 9vw, 3.4rem); letter-spacing: -0.03em; color: rgba(255, 255, 255, 0.9); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25); }
+.portada-mini { flex: none; width: 96px; border-radius: 4px; }
+.portada-mini.portada-respaldo span { font-size: 1.25rem; }
+@media (max-width: 480px) { .portada-mini { width: 72px; } }
+
+/* En las tarjetas la portada ocupa todo el ancho, pegada al borde superior. */
+.company-card > .feria-card-portada { margin: -20px -20px 0; border-radius: var(--r) var(--r) 0 0; }
+.card.feria-pub-card { overflow: hidden; }
+.card > .feria-card-portada { margin: -24px -24px 6px; border-radius: 0; }
+.feria-det-portada { margin-bottom: 28px; max-height: 380px; aspect-ratio: auto; height: clamp(180px, 32vw, 380px); border: 1px solid var(--line); }
+.feria-det-portada.portada-respaldo span { font-size: clamp(2.6rem, 10vw, 5rem); }
+
+.portada-editor { display: grid; grid-template-columns: minmax(0, 280px) 1fr; gap: 16px; align-items: end; }
+.portada-editor .portada { border: 1px solid var(--line); }
+.portada-editor-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 560px) { .portada-editor { grid-template-columns: 1fr; } }
+
+/* ---------- Cancelar inscripción del visitante ---------- */
+.cancelar-inscripcion { display: inline-flex; align-items: center; gap: 6px; align-self: center; color: var(--pebble); font-weight: 600; font-size: 0.85rem; text-decoration: none; }
+.cancelar-inscripcion:hover { color: var(--crimson); text-decoration: underline; }
+.lista-consecuencias { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--slate); font-size: 0.92rem; }

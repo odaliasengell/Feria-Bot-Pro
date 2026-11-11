@@ -6,6 +6,7 @@ import { feriasApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { normalizar, rangoFechas, type Tone } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
+import PortadaFeria from '../components/PortadaFeria';
 
 const PESTANAS: { estado: EstadoFeria; label: string; vacio: string }[] = [
   { estado: 'proxima', label: 'Próximas', vacio: 'No hay ferias próximas por ahora.' },
@@ -138,6 +139,7 @@ function TarjetaFeria({ feria: f }: { feria: Feria }) {
   const est = ESTADO[f.estado];
   return (
     <Link to={`/ferias/${encodeURIComponent(f.id)}`} className="card feria-card feria-pub-card">
+      <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} className="feria-card-portada" />
       <div className="feria-card-top">
         <span className={`badge tone-${est.tone}`}>{est.label}</span>
         {f.estado !== 'finalizada' &&

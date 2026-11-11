@@ -135,6 +135,53 @@ export function descargarCSV(nombreArchivo: string, filas: (string | number)[][]
 }
 
 /** Reduce una imagen a `max` px de lado para no llenar el almacenamiento. */
+/**
+ * Portada de feria: recorta la imagen al centro en 16:9 y la deja en 1200×675 JPEG (unos 150–300 KB),
+ * para que quepa holgada en la base de datos.
+ */
+export function portadaDesdeArchivo(file: File): Promise<string> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return Promise.reject(new Error('Usa una imagen JPG, PNG o WebP.'));
+  if (file.size > 15 * 1024 * 1024) return Promise.reject(new Error('La imagen supera 15 MB. Elige una más liviana.'));
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('No se pudo leer la imagen.'));
+    };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (img.width < 480 || img.height < 270) {
+        reject(new Error('La imagen es muy pequeña: usa una de al menos 480×270 px.'));
+        return;
+      }
+      const ancho = 1200;
+      const alto = 675;
+      // Recorte centrado con la proporción 16:9.
+      const proporcion = ancho / alto;
+      let sw = img.width;
+      let sh = sw / proporcion;
+      if (sh > img.height) {
+        sh = img.height;
+        sw = sh * proporcion;
+      }
+      const sx = (img.width - sw) / 2;
+      const sy = (img.height - sh) / 2;
+      // Nunca se agranda: si el recorte mide menos de 1200 px de ancho, se conserva su tamaño.
+      const destino = sw < ancho ? { w: Math.round(sw), h: Math.round(sh) } : { w: ancho, h: alto };
+      const canvas = document.createElement('canvas');
+      canvas.width = destino.w;
+      canvas.height = destino.h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff'; // fondo para PNG con transparencia
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.src = url;
+  });
+}
+
 export function redimensionarImagen(file: File, max = 900): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

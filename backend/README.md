@@ -183,9 +183,12 @@ usa un servicio como Brevo o SendGrid cambiando `SMTP_HOST`, `SMTP_PORT`, `SMTP_
 | Correo | Cuándo | Plantilla |
 | --- | --- | --- |
 | Código de verificación | Registro, ingreso con correo, olvidé mi contraseña, cambio de correo | `codigo_verificacion.html` |
-| Bienvenida con la tarjeta (código y QR `FERIABOT:V:<codigo>`) | `POST /visitantes` de un visitante nuevo con correo | `bienvenida_visitante.html` |
+| Bienvenida con la tarjeta (código y QR `FERIABOT:V:<codigo>`) | Cada vez que un visitante con correo queda inscrito en una feria nueva para él: registro (`POST /visitantes`), inscripción con su cuenta (`POST /inscripciones`) o el organizador lo inscribe. No se repite si ya estaba inscrito | `bienvenida_visitante.html` |
 | Acceso de empresa (correo y contraseña) | `POST /empresas` o `POST /empresas/importar` con contraseña | `acceso_empresa.html` |
 | Recordatorio con la tarjeta | Un día antes de la feria (comando) o a mano (`POST /ferias/:id/recordatorio`) | `recordatorio_feria.html` |
+
+Si la feria tiene **portada**, la bienvenida, el acceso de empresa y el recordatorio la muestran arriba del
+contenido (va adjunta al correo, como el QR; si es una URL https se enlaza). Sin portada el bloque no aparece.
 
 La bienvenida y el acceso de empresa se envían en segundo plano: si fallan, el registro sigue igual y el error
 queda en el log. Los botones apuntan a `FRONTEND_URL`.
@@ -204,6 +207,10 @@ programarlo una vez al día, por ejemplo con el Programador de tareas de Windows
 .\.venv\Scripts\python -m app.correo recordatorio   # recordatorio
 ```
 
+Para verlos con portada, agrega el id de una feria (toma su nombre, fechas, lugar y portada de la base) o la
+ruta de una imagen: `.\.venv\Scripts\python -m app.correo recordatorio feria-abc123` o
+`... app.correo visitante C:\fotos\recinto.jpg`.
+
 Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada empresa entra con su correo
 (p. ej. `ventas@cafeandino.com`) y la contraseña `empresa123`; visitantes con su código, p. ej. `FB-7K3PQX`.
 
@@ -217,14 +224,14 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | --- | --- | --- |
 | `GET /ferias?activas=true&estado=` · `GET /ferias/:id` | Público | Con `abierta`, `estado` (`proxima`, `en_curso`, `finalizada`), `aforo`, `llena`, `recordatorioEnviadoEn`, `totalEmpresas` y `totalVisitantes` |
 | `GET /ferias/:id/publica` | Público | La feria con `empresas`: `id`, `nombre`, `rubro`, `stand` y `logo` (sin correo ni teléfono) |
-| `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, fechaInicio, fechaFin, inscripcionesAbiertas, aforo }`; en el PATCH, `aforo: null` quita el límite |
-| `POST /ferias/:id/duplicar` | Organizador | `{ nombre, fechaInicio, fechaFin }`: nueva feria con la descripción, el lugar y el aforo de la original (las empresas no se copian porque su correo es único); 201 |
+| `POST /ferias` · `PATCH /ferias/:id` · `DELETE /ferias/:id` | Organizador | `{ nombre, descripcion, lugar, portada, portadaAlt, fechaInicio, fechaFin, inscripcionesAbiertas, aforo }`. `portada` es opcional: data URL JPG, PNG o WebP (máx. 1,5 MB) o URL `https://`; `portadaAlt` es su texto alternativo. En el PATCH, `aforo: null` quita el límite y `portada: null` quita la imagen |
+| `POST /ferias/:id/duplicar` | Organizador | `{ nombre, fechaInicio, fechaFin }`: nueva feria con la descripción, el lugar, la portada y el aforo de la original (las empresas no se copian porque su correo es único); 201 |
 | `GET /ferias/:id/estadisticas` | Organizador | `{ totalInscritos, asistentes, inscritosPorDia: [{ fecha, total }], escaneosPorHora: [{ hora, total }], rankingEmpresas: [{ empresaId, nombre, leads, vistas }], ciudades: [{ ciudad, total }] }`. Días y horas en hora local (`ZONA_HORARIA_UTC`), con los huecos en 0 |
 | `POST /ferias/:id/asistencia` | Organizador | Control de acceso en la puerta: `{ codigo }` (código o QR) → `{ visitante, asistioEn, yaRegistrada }`. 404 si el código no existe, 403 si no está inscrito. Si ya entró, conserva la primera hora |
 | `POST /ferias/:id/recordatorio` | Organizador | Envía ya el recordatorio a los inscritos con correo; devuelve `{ enviados }` (409 si la feria terminó) |
 | `GET /inscripciones?visitanteId=&feriaId=` | Organizador, el propio visitante | Con la `feria` embebida y `asistioEn` (hora de entrada o null) |
 | `POST /inscripciones` | Visitante, organizador | `{ feriaId }` (el organizador agrega `visitanteId`); si ya estaba inscrito devuelve la misma |
-| `DELETE /inscripciones/:feriaId/:visitanteId` | Organizador | Quita de la feria y borra sus leads y vistas en ella |
+| `DELETE /inscripciones/:feriaId/:visitanteId` | Organizador, el propio visitante | Quita de la feria (el visitante cancela su propia inscripción) y borra sus leads y vistas en ella; la cuenta se conserva. 404 si no estaba inscrito |
 
 ### Empresas
 

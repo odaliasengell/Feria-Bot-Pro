@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
-from ..models import Empresa, Feria, Inscripcion, Lead, VistaFicha
+from ..models import Empresa, Feria, Inscripcion, Lead, Visitante, VistaFicha
 from ..schemas import (
     AsistenciaOut,
     AsistenciaRegistrar,
@@ -82,6 +83,17 @@ def inscribir(db: Session, feria: Feria, visitante_id: str, *, forzar: bool = Fa
     return ins
 
 
+def avisar_inscripcion(tareas: BackgroundTasks, feria: Feria, visitante: Visitante) -> None:
+    """Correo con la tarjeta de esa feria (código, QR y portada), en segundo plano; sin correo no se envía nada."""
+    if visitante.email:
+        tareas.add_task(
+            enviar_sin_fallar, enviar_bienvenida_visitante,
+            visitante.email, visitante.nombre, visitante.codigo, feria.nombre,
+            rango_fechas(feria.fecha_inicio, feria.fecha_fin),
+            portada=feria.portada, portada_alt=feria.portada_alt,
+        )
+
+
 def _con_totales(db: Session, ferias: list[Feria]) -> list[FeriaOut]:
     ids = [f.id for f in ferias]
     if not ids:
@@ -151,8 +163,8 @@ def crear(data: FeriaBase, db: DB):
 def actualizar(feria_id: str, cambios: FeriaActualizar, db: DB):
     feria = obtener_feria(db, feria_id)
     for campo, valor in cambios.model_dump(exclude_unset=True).items():
-        # aforo: null quita el límite; en el resto de campos un null se ignora.
-        if valor is not None or campo == "aforo":
+        # aforo y portada: null quita el límite / la imagen; en el resto de campos un null se ignora.
+        if valor is not None or campo in ("aforo", "portada"):
             setattr(feria, campo, valor)
     if feria.fecha_fin < feria.fecha_inicio:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "La fecha de fin no puede ser anterior a la de inicio")
@@ -167,7 +179,7 @@ def actualizar(feria_id: str, cambios: FeriaActualizar, db: DB):
     dependencies=[Depends(requiere("organizador"))],
 )
 def duplicar(feria_id: str, data: FeriaDuplicar, db: DB):
-    """Nueva edición de una feria: copia descripción, lugar y aforo con el nombre y las fechas nuevas.
+    """Nueva edición de una feria: copia descripción, lugar, aforo y portada con el nombre y las fechas nuevas.
 
     Las empresas no se copian: cada una entra con su correo, que es único en todo el sistema.
     """
@@ -177,6 +189,8 @@ def duplicar(feria_id: str, data: FeriaDuplicar, db: DB):
         nombre=data.nombre.strip(),
         descripcion=origen.descripcion,
         lugar=origen.lugar,
+        portada=origen.portada,
+        portada_alt=origen.portada_alt,
         aforo=origen.aforo,
         fecha_inicio=data.fecha_inicio,
         fecha_fin=data.fecha_fin,
@@ -264,6 +278,7 @@ def crear_inscripcion(
     data: InscripcionCrear,
     db: DB,
     sesion: Annotated[Sesion, Depends(requiere("organizador", "visitante"))],
+    tareas: BackgroundTasks,
 ):
     """El visitante se inscribe a otra feria con su misma cuenta (el organizador puede inscribir a cualquiera)."""
     from .visitantes import obtener_visitante
@@ -272,20 +287,33 @@ def crear_inscripcion(
     if not visitante_id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Falta visitanteId")
     solo_propio(sesion, "visitante", visitante_id)
-    obtener_visitante(db, visitante_id)
+    visitante = obtener_visitante(db, visitante_id)
     feria = obtener_feria(db, data.feria_id)
+    ya_inscrito = esta_inscrito(db, feria.id, visitante_id)
     ins = inscribir(db, feria, visitante_id, forzar=sesion.role == "organizador")
     db.commit()
+    if not ya_inscrito:
+        avisar_inscripcion(tareas, feria, visitante)
     return InscripcionOut.model_validate(ins).model_copy(update={"feria": _con_totales(db, [feria])[0]})
 
 
 @router.delete(
     "/inscripciones/{feria_id}/{visitante_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(requiere("organizador"))],
 )
-def quitar_inscripcion(feria_id: str, visitante_id: str, db: DB):
-    """Quita al visitante de la feria junto con sus leads y vistas en ella. Su cuenta se conserva."""
+def quitar_inscripcion(
+    feria_id: str,
+    visitante_id: str,
+    db: DB,
+    sesion: Annotated[Sesion, Depends(requiere("organizador", "visitante"))],
+):
+    """Quita al visitante de la feria junto con sus leads y vistas en ella. Su cuenta se conserva.
+
+    El organizador quita a cualquiera; el visitante solo cancela su propia inscripción.
+    """
+    solo_propio(sesion, "visitante", visitante_id)
+    if not esta_inscrito(db, feria_id, visitante_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay una inscripción en esa feria.")
     empresas = select(Empresa.id).where(Empresa.feria_id == feria_id)
     db.execute(delete(Lead).where(Lead.visitante_id == visitante_id, Lead.empresa_id.in_(empresas)))
     db.execute(delete(VistaFicha).where(VistaFicha.visitante_id == visitante_id, VistaFicha.empresa_id.in_(empresas)))

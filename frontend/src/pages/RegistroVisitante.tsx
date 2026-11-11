@@ -8,6 +8,7 @@ import { useAsync } from '../lib/useAsync';
 import { rangoFechas } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
+import PortadaFeria from '../components/PortadaFeria';
 import AceptoPolitica from '../components/AceptoPolitica';
 import FormVisitante, { erroresVisitante, visitanteVacio } from './organizador/FormVisitante';
 import { useValidacion } from '../lib/useValidacion';
@@ -82,6 +83,7 @@ function ElegirFeria({ ferias, onElegir }: { ferias: Feria[]; onElegir: (f: Feri
         {ferias.map((f) => (
           <li key={f.id}>
             <button type="button" className="feria-option" onClick={() => onElegir(f)}>
+              <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} variante="mini" />
               <div className="grow">
                 <strong>
                   {f.nombre} {f.llena && <span className="badge tone-orange">Feria llena</span>}

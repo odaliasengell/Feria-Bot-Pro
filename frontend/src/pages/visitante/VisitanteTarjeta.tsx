@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, CalendarPlus, ChevronRight, Eye, Mail, MapPin, PartyPopper, Phone, ScanLine, Store, WifiOff } from 'lucide-react';
+import { CalendarDays, CalendarPlus, CalendarX, ChevronRight, Eye, Mail, MapPin, PartyPopper, Phone, ScanLine, Store, WifiOff } from 'lucide-react';
 import type { Feria } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { feriasApi, inscripcionesApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { useEnLinea } from '../../lib/useEnLinea';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
-import { Alert, Avatar, Card, EmptyState, Loader } from '../../components/ui';
+import { Alert, Avatar, Card, EmptyState, Loader, Modal } from '../../components/ui';
+import { mensajeError, useToast } from '../../context/ToastContext';
 import { TarjetaVisitante } from '../../components/Credenciales';
 
 export default function VisitanteTarjeta() {
@@ -30,6 +31,10 @@ export default function VisitanteTarjeta() {
   );
   const [inscribiendo, setInscribiendo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Feria cuya inscripción se está por cancelar (abre la confirmación). */
+  const [cancelando, setCancelando] = useState<Feria | null>(null);
+  const [quitando, setQuitando] = useState(false);
+  const toast = useToast();
 
   if (cargando && !data) return <Loader />;
   const [visitante, inscripciones, leads, vistas, abiertas, feriaPedida] = data ?? [null, [], [], [], [], null];
@@ -70,6 +75,24 @@ export default function VisitanteTarjeta() {
       setError(err instanceof Error ? err.message : 'No se pudo completar la inscripción');
     } finally {
       setInscribiendo(null);
+    }
+  }
+
+  async function cancelarInscripcion(f: Feria) {
+    setQuitando(true);
+    try {
+      await inscripcionesApi.quitar(f.id, id);
+      setCancelando(null);
+      toast.exito(`Cancelaste tu inscripción a «${f.nombre}».`);
+      const p = new URLSearchParams(params);
+      p.delete('feria');
+      p.delete('nuevo');
+      setParams(p, { replace: true });
+      recargar();
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudo cancelar la inscripción.'));
+    } finally {
+      setQuitando(false);
     }
   }
 
@@ -140,7 +163,14 @@ export default function VisitanteTarjeta() {
         </Card>
       ) : (
         <div className="visitor-layout">
-          <TarjetaVisitante visitante={visitante} feria={actual} />
+          <div className="stack">
+            <TarjetaVisitante visitante={visitante} feria={actual} />
+            {enLinea && (
+              <button type="button" className="link-btn cancelar-inscripcion no-print" onClick={() => setCancelando(actual)}>
+                <CalendarX size={15} /> Cancelar mi inscripción a esta feria
+              </button>
+            )}
+          </div>
 
           <div className="stack">
             <Card title="Empresas que registraron tu visita" action={<span className="count-pill">{leadsFeria.length}</span>}>
@@ -241,6 +271,29 @@ export default function VisitanteTarjeta() {
           </ul>
         </Card>
       )}
+
+      <Modal open={cancelando !== null} onClose={() => !quitando && setCancelando(null)} title="¿Cancelar tu inscripción?">
+        {cancelando && (
+          <div className="stack">
+            <p>
+              Vas a dejar de estar inscrito en <b>{cancelando.nombre}</b>.
+            </p>
+            <ul className="lista-consecuencias">
+              <li>Tu tarjeta ya no servirá en los stands de esta feria.</li>
+              <li>Se borra tu historial en esta feria: las empresas que escanearon tu QR aquí dejarán de ver tus datos.</li>
+              <li>Tu cuenta, tu código y tus otras ferias se mantienen. Puedes volver a inscribirte mientras las inscripciones estén abiertas.</li>
+            </ul>
+            <div className="row-gap">
+              <button type="button" className="btn btn-danger" onClick={() => cancelarInscripcion(cancelando)} disabled={quitando}>
+                <CalendarX size={16} /> {quitando ? 'Cancelando…' : 'Sí, cancelar inscripción'}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setCancelando(null)} disabled={quitando}>
+                Volver
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

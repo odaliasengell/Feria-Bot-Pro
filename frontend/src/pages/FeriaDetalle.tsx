@@ -7,6 +7,7 @@ import { feriasApi, inscripcionesApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { rangoFechas, type Tone } from '../lib/utils';
 import { Alert, Avatar, EmptyState, Loader } from '../components/ui';
+import PortadaFeria from '../components/PortadaFeria';
 
 const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
   proxima: { label: 'Próxima', tone: 'blue' },
@@ -76,6 +77,7 @@ function Detalle({ feria }: { feria: FeriaPublica }) {
   const est = ESTADO[feria.estado];
   return (
     <>
+      <PortadaFeria nombre={feria.nombre} portada={feria.portada} portadaAlt={feria.portadaAlt} variante="detalle" className="feria-det-portada" />
       <header className="feria-det-head">
         <div className="feria-det-info">
           <div className="feria-det-badges">

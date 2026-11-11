@@ -102,6 +102,16 @@ def _agregar_estado_lead(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE leads ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'nuevo' AFTER calificacion"))
 
 
+def _agregar_portada(engine: Engine) -> None:
+    """Imagen de portada opcional de la feria y su texto alternativo."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("ferias")}
+    with engine.begin() as conn:
+        if "portada" not in columnas:
+            conn.execute(text("ALTER TABLE ferias ADD COLUMN portada LONGTEXT NULL AFTER lugar"))
+        if "portada_alt" not in columnas:
+            conn.execute(text("ALTER TABLE ferias ADD COLUMN portada_alt VARCHAR(200) NOT NULL DEFAULT '' AFTER portada"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
@@ -110,3 +120,4 @@ def migrar(engine: Engine) -> None:
     _agregar_aforo(engine)
     _agregar_registrado_por(engine)
     _agregar_estado_lead(engine)
+    _agregar_portada(engine)

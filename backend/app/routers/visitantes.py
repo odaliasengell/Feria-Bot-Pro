@@ -12,7 +12,7 @@ from ..schemas import CambioCorreo, CambioCorreoEnviar, Sesion, VisitanteActuali
 from ..security import requiere, sesion_opcional, solo_propio
 from ..utils import ahora, generar_codigo, leer_codigo_visitante, uid
 from ..verificacion import crear_y_enviar, verificar
-from .ferias import exigir_cupo, exigir_inscripcion, inscribir, obtener_feria
+from .ferias import avisar_inscripcion, esta_inscrito, exigir_cupo, exigir_inscripcion, inscribir, obtener_feria
 
 router = APIRouter(prefix="/visitantes", tags=["visitantes"])
 
@@ -178,9 +178,12 @@ def crear(
                 status.HTTP_409_CONFLICT,
                 "Ya tienes una cuenta con ese correo. Ingresa con tu correo para inscribirte a esta feria.",
             )
+        ya_inscrito = esta_inscrito(db, feria.id, existente.id)
         inscribir(db, feria, existente.id, forzar=True)
         _registrar_aceptacion(existente)
         db.commit()
+        if not ya_inscrito:
+            avisar_inscripcion(tareas, feria, existente)
         return existente
     if email and not es_org:
         if not data.codigo_verificacion:
@@ -204,6 +207,7 @@ def crear(
         tareas.add_task(
             enviar_sin_fallar, enviar_bienvenida_visitante,
             email, visitante.nombre, visitante.codigo, feria.nombre, rango_fechas(feria.fecha_inicio, feria.fecha_fin),
+            portada=feria.portada, portada_alt=feria.portada_alt,
         )
     return visitante
 
