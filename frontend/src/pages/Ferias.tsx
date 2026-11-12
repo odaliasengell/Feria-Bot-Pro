@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CalendarDays, MapPin, Search, Store, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, CalendarCheck, MapPin, QrCode, ScanLine, Search, Store, Users, X } from 'lucide-react';
 import type { EstadoFeria, Feria } from '../types';
 import { feriasApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
@@ -8,10 +8,13 @@ import { normalizar, rangoFechas, type Tone } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
 import PortadaFeria from '../components/PortadaFeria';
 
-const PESTANAS: { estado: EstadoFeria; label: string; vacio: string }[] = [
-  { estado: 'proxima', label: 'Próximas', vacio: 'No hay ferias próximas por ahora.' },
-  { estado: 'en_curso', label: 'En curso', vacio: 'No hay ferias en curso en este momento.' },
-  { estado: 'finalizada', label: 'Finalizadas', vacio: 'Todavía no hay ferias finalizadas.' },
+type Filtro = 'todas' | EstadoFeria;
+
+const PESTANAS: { filtro: Filtro; label: string; vacio: string }[] = [
+  { filtro: 'todas', label: 'Todas', vacio: 'Todavía no hay ferias publicadas.' },
+  { filtro: 'en_curso', label: 'En curso', vacio: 'No hay ferias en curso en este momento.' },
+  { filtro: 'proxima', label: 'Próximas', vacio: 'No hay ferias próximas por ahora.' },
+  { filtro: 'finalizada', label: 'Finalizadas', vacio: 'Todavía no hay ferias finalizadas.' },
 ];
 
 const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
@@ -20,33 +23,71 @@ const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
   finalizada: { label: 'Finalizada', tone: 'gray' },
 };
 
-function esEstado(v: string | null): v is EstadoFeria {
-  return v === 'proxima' || v === 'en_curso' || v === 'finalizada';
+const ORDEN_ESTADO: Record<EstadoFeria, number> = { en_curso: 0, proxima: 1, finalizada: 2 };
+
+function esFiltro(v: string | null): v is Filtro {
+  return v === 'todas' || v === 'proxima' || v === 'en_curso' || v === 'finalizada';
 }
 
-/** Página pública (sin sesión) con las ferias por estado y un buscador por nombre o lugar. */
+/** En curso primero, luego las próximas (la más cercana primero) y al final las finalizadas (la más reciente primero). */
+function ordenar(a: Feria, b: Feria): number {
+  if (a.estado !== b.estado) return ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado];
+  if (a.estado === 'proxima') return a.fechaInicio.localeCompare(b.fechaInicio);
+  return b.fechaInicio.localeCompare(a.fechaInicio);
+}
+
+/** La feria que se destaca arriba: la que más convoca entre las abiertas en curso, si no la próxima más cercana. */
+function elegirDestacada(ferias: Feria[]): Feria | null {
+  const enCurso = ferias.filter((f) => f.estado === 'en_curso').sort((a, b) => Number(b.abierta) - Number(a.abierta) || b.totalVisitantes - a.totalVisitantes);
+  const proximas = ferias.filter((f) => f.estado === 'proxima').sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio));
+  return enCurso[0] ?? proximas[0] ?? null;
+}
+
+/** Página pública (sin sesión) con las ferias por estado, una feria destacada y un buscador por nombre o lugar. */
 export default function Ferias() {
   const [params, setParams] = useSearchParams();
-  const estadoParam = params.get('estado');
-  const estado: EstadoFeria = esEstado(estadoParam) ? estadoParam : 'proxima';
+  const filtroParam = params.get('estado');
+  const filtro: Filtro = esFiltro(filtroParam) ? filtroParam : 'todas';
   const [busqueda, setBusqueda] = useState('');
 
-  const { data, cargando, error, recargar } = useAsync(() => feriasApi.listar(false, estado), [estado]);
+  // Una sola llamada con todas las ferias: así cada pestaña muestra cuántas tiene.
+  const { data, cargando, error, recargar } = useAsync(() => feriasApi.listar(), []);
 
   useEffect(() => {
     document.title = 'Ferias · FeriaBot Pro';
   }, []);
 
-  const visibles = useMemo(() => {
-    const q = normalizar(busqueda.trim());
-    const lista = data ?? [];
-    if (!q) return lista;
-    return lista.filter((f) => normalizar(f.nombre).includes(q) || normalizar(f.lugar).includes(q));
-  }, [data, busqueda]);
+  const todas = useMemo(() => [...(data ?? [])].sort(ordenar), [data]);
+  const cantidad = useMemo(() => {
+    const c: Record<Filtro, number> = { todas: todas.length, en_curso: 0, proxima: 0, finalizada: 0 };
+    for (const f of todas) c[f.estado] += 1;
+    return c;
+  }, [todas]);
+  const destacada = useMemo(() => elegirDestacada(todas), [todas]);
 
-  // Próximas: la más cercana primero. En curso y finalizadas: la más reciente primero (como llegan del backend).
-  const ordenadas = estado === 'proxima' ? [...visibles].sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio)) : visibles;
-  const pestana = PESTANAS.find((p) => p.estado === estado)!;
+  const cifras = useMemo(() => {
+    const vigentes = todas.filter((f) => f.estado !== 'finalizada');
+    return {
+      abiertas: todas.filter((f) => f.abierta).length,
+      empresas: vigentes.reduce((n, f) => n + f.totalEmpresas, 0),
+      inscritos: todas.reduce((n, f) => n + f.totalVisitantes, 0),
+    };
+  }, [todas]);
+
+  const q = normalizar(busqueda.trim());
+  const visibles = todas
+    .filter((f) => filtro === 'todas' || f.estado === filtro)
+    .filter((f) => !q || normalizar(f.nombre).includes(q) || normalizar(f.lugar).includes(q))
+    // En «Todas» sin búsqueda, la destacada ya se ve arriba: no se repite en la cuadrícula.
+    .filter((f) => !(filtro === 'todas' && !q && f.id === destacada?.id));
+
+  const pestana = PESTANAS.find((p) => p.filtro === filtro)!;
+  // Para el aviso de pestaña vacía: la pestaña con más ferias a la que conviene ir.
+  const alternativa = PESTANAS.filter((p) => p.filtro !== 'todas' && p.filtro !== filtro && cantidad[p.filtro] > 0).sort(
+    (a, b) => cantidad[b.filtro] - cantidad[a.filtro],
+  )[0];
+
+  const cambiarFiltro = (f: Filtro) => setParams(f === 'todas' ? {} : { estado: f }, { replace: true });
 
   return (
     <div className="landing">
@@ -70,24 +111,50 @@ export default function Ferias() {
       </nav>
 
       <main className="section ferias-pub">
-        <div className="section-head">
-          <span className="tag-mint">Calendario</span>
-          <h2>Ferias en FeriaBot Pro.</h2>
-          <p>Consulta las ferias próximas, las que están en curso y las que ya terminaron, y regístrate en las que tienen inscripciones abiertas.</p>
-        </div>
+        <header className={`ferias-hero ${destacada ? '' : 'sin-destacada'}`}>
+          <div className="ferias-hero-texto">
+            <span className="tag-mint">Calendario</span>
+            <h1>Ferias en FeriaBot Pro.</h1>
+            <p>
+              Elige la feria a la que vas a ir, regístrate en un minuto y recibe tu tarjeta con QR para que las empresas
+              guarden tu visita en cada stand.
+            </p>
+            {data && (
+              <ul className="ferias-cifras" aria-label="Resumen">
+                <li>
+                  <CalendarCheck size={18} />
+                  <b>{cifras.abiertas}</b>
+                  <span>{cifras.abiertas === 1 ? 'feria con inscripciones abiertas' : 'ferias con inscripciones abiertas'}</span>
+                </li>
+                <li>
+                  <Store size={18} />
+                  <b>{cifras.empresas}</b>
+                  <span>{cifras.empresas === 1 ? 'empresa participante' : 'empresas participantes'}</span>
+                </li>
+                <li>
+                  <Users size={18} />
+                  <b>{cifras.inscritos}</b>
+                  <span>{cifras.inscritos === 1 ? 'inscripción de visitantes' : 'inscripciones de visitantes'}</span>
+                </li>
+              </ul>
+            )}
+          </div>
+          {destacada && <FeriaDestacada feria={destacada} />}
+        </header>
 
-        <div className="ferias-pub-bar">
+        <div className="ferias-pub-bar" id="calendario">
           <div className="tabs" role="tablist" aria-label="Estado de la feria">
             {PESTANAS.map((p) => (
               <button
-                key={p.estado}
+                key={p.filtro}
                 type="button"
                 role="tab"
-                aria-selected={p.estado === estado}
-                className={`tab${p.estado === estado ? ' is-active' : ''}`}
-                onClick={() => setParams(p.estado === 'proxima' ? {} : { estado: p.estado }, { replace: true })}
+                aria-selected={p.filtro === filtro}
+                className={`tab${p.filtro === filtro ? ' is-active' : ''}`}
+                onClick={() => cambiarFiltro(p.filtro)}
               >
                 {p.label}
+                {data && <span className="tab-cuenta">{cantidad[p.filtro]}</span>}
               </button>
             ))}
           </div>
@@ -117,13 +184,30 @@ export default function Ferias() {
               Reintentar
             </button>
           </Alert>
-        ) : ordenadas.length === 0 ? (
-          <EmptyState icon={<CalendarDays />} title={busqueda ? 'Sin resultados' : pestana.vacio}>
-            {busqueda ? `Ninguna feria ${pestana.label.toLowerCase()} coincide con «${busqueda}».` : 'Revisa las otras pestañas.'}
-          </EmptyState>
+        ) : visibles.length === 0 ? (
+          filtro === 'todas' && !q && destacada ? (
+            <p className="muted center ferias-solo-destacada">Por ahora esta es la única feria publicada. ¡Pronto habrá más!</p>
+          ) : (
+            <EmptyState icon={<CalendarDays />} title={q ? 'Sin resultados' : pestana.vacio}>
+              {q ? (
+                <>
+                  Ninguna feria coincide con «{busqueda}».{' '}
+                  <button type="button" className="link-btn" onClick={() => setBusqueda('')}>
+                    Limpiar búsqueda
+                  </button>
+                </>
+              ) : alternativa ? (
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => cambiarFiltro(alternativa.filtro)}>
+                  Ver ferias {alternativa.label.toLowerCase()} ({cantidad[alternativa.filtro]}) <ArrowRight size={15} />
+                </button>
+              ) : (
+                'Vuelve pronto: aquí aparecerán las próximas ferias.'
+              )}
+            </EmptyState>
+          )
         ) : (
           <ul className="ferias-pub-grid">
-            {ordenadas.map((f) => (
+            {visibles.map((f) => (
               <li key={f.id}>
                 <TarjetaFeria feria={f} />
               </li>
@@ -131,7 +215,90 @@ export default function Ferias() {
           </ul>
         )}
       </main>
+
+      <section className="ferias-como">
+        <div className="ferias-como-inner">
+          <h2>¿Cómo funciona?</h2>
+          <ol className="ferias-pasos">
+            <li>
+              <span className="ferias-paso-icono">
+                <CalendarDays size={22} />
+              </span>
+              <b>Elige tu feria</b>
+              <span>Revisa las fechas, el lugar y las empresas que participan.</span>
+            </li>
+            <li>
+              <span className="ferias-paso-icono">
+                <QrCode size={22} />
+              </span>
+              <b>Recibe tu tarjeta QR</b>
+              <span>Te registras en un minuto y la recibes también en tu correo.</span>
+            </li>
+            <li>
+              <span className="ferias-paso-icono">
+                <ScanLine size={22} />
+              </span>
+              <b>Visita los stands</b>
+              <span>Las empresas escanean tu QR y tú guardas sus contactos en tu historial.</span>
+            </li>
+          </ol>
+          <Link to="/registro" className="btn btn-accent btn-lg">
+            Registrarme ahora <ArrowRight size={18} />
+          </Link>
+        </div>
+      </section>
     </div>
+  );
+}
+
+function EstadoInscripcion({ feria: f }: { feria: Feria }) {
+  if (f.estado === 'finalizada') return null;
+  if (f.abierta && f.llena) return <span className="feria-insc">Feria llena</span>;
+  return <span className={`feria-insc ${f.abierta ? 'is-open' : ''}`}>{f.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}</span>;
+}
+
+function FeriaDestacada({ feria: f }: { feria: Feria }) {
+  const est = ESTADO[f.estado];
+  const puedeInscribirse = f.abierta && !f.llena;
+  return (
+    <article className="feria-destacada">
+      <Link to={`/ferias/${encodeURIComponent(f.id)}`} className="feria-destacada-portada" tabIndex={-1} aria-hidden="true">
+        <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} variante="detalle" />
+        <span className="feria-destacada-sello">{f.estado === 'en_curso' ? 'Ahora' : 'Próximamente'}</span>
+      </Link>
+      <div className="feria-destacada-cuerpo">
+        <div className="feria-card-top">
+          <span className={`badge tone-${est.tone}`}>{est.label}</span>
+          <EstadoInscripcion feria={f} />
+        </div>
+        <h2>
+          <Link to={`/ferias/${encodeURIComponent(f.id)}`}>{f.nombre}</Link>
+        </h2>
+        <div className="feria-card-meta muted small">
+          <span>
+            <CalendarDays size={14} /> {rangoFechas(f.fechaInicio, f.fechaFin)}
+          </span>
+          {f.lugar && (
+            <span>
+              <MapPin size={14} /> {f.lugar}
+            </span>
+          )}
+          <span>
+            <Store size={14} /> {f.totalEmpresas} {f.totalEmpresas === 1 ? 'empresa' : 'empresas'}
+          </span>
+        </div>
+        <div className="row-gap">
+          {puedeInscribirse && (
+            <Link to={`/registro/${encodeURIComponent(f.id)}`} className="btn btn-accent">
+              Inscribirme
+            </Link>
+          )}
+          <Link to={`/ferias/${encodeURIComponent(f.id)}`} className={`btn ${puedeInscribirse ? 'btn-outline' : 'btn-primary'}`}>
+            Ver feria <ArrowRight size={16} />
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -142,14 +309,7 @@ function TarjetaFeria({ feria: f }: { feria: Feria }) {
       <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} className="feria-card-portada" />
       <div className="feria-card-top">
         <span className={`badge tone-${est.tone}`}>{est.label}</span>
-        {f.estado !== 'finalizada' &&
-          (f.abierta && f.llena ? (
-            <span className="feria-insc">Feria llena</span>
-          ) : (
-            <span className={`feria-insc ${f.abierta ? 'is-open' : ''}`}>
-              {f.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'}
-            </span>
-          ))}
+        <EstadoInscripcion feria={f} />
       </div>
       <h3 className="feria-card-title">{f.nombre}</h3>
       <div className="feria-card-meta muted small">
