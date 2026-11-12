@@ -1,15 +1,61 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, CalendarPlus, CalendarX, ChevronRight, Eye, Mail, MapPin, PartyPopper, Phone, ScanLine, Store, WifiOff } from 'lucide-react';
-import type { Feria } from '../../types';
+import {
+  ArrowRight,
+  CalendarDays,
+  CalendarPlus,
+  CalendarX,
+  Check,
+  ChevronRight,
+  Eye,
+  Mail,
+  MapPin,
+  PartyPopper,
+  Phone,
+  ScanLine,
+  Store,
+  WifiOff,
+} from 'lucide-react';
+import type { EstadoFeria, Feria } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { feriasApi, inscripcionesApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { useEnLinea } from '../../lib/useEnLinea';
-import { haceCuanto, rangoFechas } from '../../lib/utils';
+import { haceCuanto, hoyISO, rangoFechas, type Tone } from '../../lib/utils';
 import { Alert, Avatar, Card, EmptyState, Loader, Modal } from '../../components/ui';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { TarjetaVisitante } from '../../components/Credenciales';
+import PortadaFeria from '../../components/PortadaFeria';
+
+const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
+  en_curso: { label: 'En curso', tone: 'teal' },
+  proxima: { label: 'Próxima', tone: 'blue' },
+  finalizada: { label: 'Finalizada', tone: 'gray' },
+};
+const ORDEN: Record<EstadoFeria, number> = { en_curso: 0, proxima: 1, finalizada: 2 };
+
+/** En curso primero, luego las próximas (la más cercana primero) y al final las finalizadas (la más reciente primero). */
+function ordenarFerias(a: Feria, b: Feria): number {
+  if (a.estado !== b.estado) return ORDEN[a.estado] - ORDEN[b.estado];
+  return a.estado === 'proxima' ? a.fechaInicio.localeCompare(b.fechaInicio) : b.fechaInicio.localeCompare(a.fechaInicio);
+}
+
+/** «Hoy», «Mañana», «En 5 días», «Hasta el 30 nov», «Terminó el 9 nov». */
+function cuando(f: Feria): string {
+  const dia = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y!, m! - 1, d!);
+  };
+  const corto = (iso: string) => dia(iso).toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  if (f.estado === 'finalizada') return `Terminó el ${corto(f.fechaFin)}`;
+  if (f.estado === 'en_curso') return f.fechaFin === hoyISO() ? 'Último día' : `Hasta el ${corto(f.fechaFin)}`;
+  const dias = Math.round((dia(f.fechaInicio).getTime() - dia(hoyISO()).getTime()) / 86_400_000);
+  return dias <= 1 ? 'Empieza mañana' : `Empieza en ${dias} días`;
+}
+
+function mapsUrl(lugar: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lugar)}`;
+}
 
 export default function VisitanteTarjeta() {
   const { session } = useAuth();
@@ -48,7 +94,10 @@ export default function VisitanteTarjeta() {
       </Alert>
     );
 
-  const misFerias = inscripciones.map((i) => i.feria).filter((f): f is Feria => !!f);
+  const misFerias = inscripciones
+    .map((i) => i.feria)
+    .filter((f): f is Feria => !!f)
+    .sort(ordenarFerias);
   const inscritoEn = new Set(misFerias.map((f) => f.id));
   const actual = misFerias.find((f) => f.id === pedida) ?? misFerias[0] ?? null;
   const otras = abiertas.filter((f) => !inscritoEn.has(f.id));
@@ -96,19 +145,17 @@ export default function VisitanteTarjeta() {
     }
   }
 
-  return (
+  const encabezado = (
     <>
-      <div className="visitor-hero">
-        <div>
-          <span className="eyebrow dark">Hola,</span>
-          <h1>{visitante.nombre.split(' ')[0]} 👋</h1>
-          <p className="muted">Presenta tu QR en los stands y escanea el QR de cada stand para conocer a las empresas.</p>
-        </div>
-        {actual && (
-          <Link to="/visitante/escanear" className="btn btn-teal">
-            <ScanLine size={17} /> Escanear stand
-          </Link>
-        )}
+      <div className="visitante-saludo">
+        <h1>Hola, {visitante.nombre.split(' ')[0]} 👋</h1>
+        <p className="muted">
+          {misFerias.length === 0
+            ? 'Inscríbete a una feria para recibir tu tarjeta con QR.'
+            : misFerias.length === 1
+              ? 'Estás inscrito en 1 feria. Presenta tu QR en los stands.'
+              : `Estás inscrito en ${misFerias.length} ferias. Elige una para ver su tarjeta y tu historial.`}
+        </p>
       </div>
 
       {params.get('nuevo') && (
@@ -145,34 +192,102 @@ export default function VisitanteTarjeta() {
         </div>
       )}
 
-      {misFerias.length > 1 && (
-        <div className="seg feria-tabs" role="tablist" aria-label="Mis ferias">
-          {misFerias.map((f) => (
-            <button key={f.id} role="tab" aria-selected={f.id === actual?.id} className={f.id === actual?.id ? 'active' : ''} onClick={() => verFeria(f.id)}>
-              {f.nombre}
-            </button>
-          ))}
-        </div>
+      {misFerias.length > 0 && (
+        <section className="mis-ferias" aria-label="Mis ferias">
+          <h2 className="mis-ferias-titulo">Mis ferias</h2>
+          <div className="mis-ferias-lista" role="tablist">
+            {misFerias.map((f) => {
+              const sel = f.id === actual?.id;
+              const est = ESTADO[f.estado];
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={sel}
+                  className={`mi-feria ${sel ? 'is-sel' : ''} ${f.estado === 'finalizada' ? 'is-pasada' : ''}`}
+                  onClick={() => verFeria(f.id)}
+                >
+                  <PortadaFeria nombre={f.nombre} portada={f.portada} portadaAlt={f.portadaAlt} variante="mini" />
+                  <span className="mi-feria-texto">
+                    <strong>{f.nombre}</strong>
+                    <span className="muted small">{rangoFechas(f.fechaInicio, f.fechaFin)}</span>
+                    <span className={`badge tone-${est.tone}`}>{est.label}</span>
+                  </span>
+                  {sel && (
+                    <span className="mi-feria-check" aria-hidden="true">
+                      <Check size={14} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
+    </>
+  );
+
+  return (
+    <>
+
 
       {!actual ? (
-        <Card>
-          <EmptyState icon={<CalendarDays />} title="Aún no estás inscrito en ninguna feria">
-            Elige una de las ferias abiertas para obtener tu tarjeta.
-          </EmptyState>
-        </Card>
+        <>
+          {encabezado}
+          <Card>
+            <EmptyState icon={<CalendarDays />} title="Aún no estás inscrito en ninguna feria">
+              Elige una de las ferias abiertas para obtener tu tarjeta.
+            </EmptyState>
+          </Card>
+        </>
       ) : (
-        <div className="visitor-layout">
-          <div className="stack">
+        // El QR arriba a la izquierda desde el principio de la página; el resto, a la derecha.
+        <div className="visitor-layout visitor-layout-arriba">
+          <div className="visitor-qr">
             <TarjetaVisitante visitante={visitante} feria={actual} />
-            {enLinea && (
-              <button type="button" className="link-btn cancelar-inscripcion no-print" onClick={() => setCancelando(actual)}>
-                <CalendarX size={15} /> Cancelar mi inscripción a esta feria
-              </button>
-            )}
           </div>
 
           <div className="stack">
+            <div className="visitor-encabezado">{encabezado}</div>
+            <section className="feria-sel">
+              <PortadaFeria nombre={actual.nombre} portada={actual.portada} portadaAlt={actual.portadaAlt} variante="detalle" className="feria-sel-portada" />
+              <div className="feria-sel-info">
+                <div className="feria-sel-badges">
+                  <span className={`badge tone-${ESTADO[actual.estado].tone}`}>{ESTADO[actual.estado].label}</span>
+                  <span className="feria-sel-cuando">{cuando(actual)}</span>
+                </div>
+                <h2>{actual.nombre}</h2>
+                <ul className="feria-sel-meta">
+                  <li>
+                    <CalendarDays size={16} /> {rangoFechas(actual.fechaInicio, actual.fechaFin)}
+                  </li>
+                  {actual.lugar && (
+                    <li>
+                      <MapPin size={16} />
+                      <a href={mapsUrl(actual.lugar)} target="_blank" rel="noopener noreferrer">
+                        {actual.lugar}
+                      </a>
+                    </li>
+                  )}
+                </ul>
+                <div className="feria-sel-acciones">
+                  {actual.estado !== 'finalizada' && (
+                    <Link to="/visitante/escanear" className="btn btn-teal">
+                      <ScanLine size={17} /> Escanear stand
+                    </Link>
+                  )}
+                  <Link to={`/ferias/${encodeURIComponent(actual.id)}`} className="btn btn-outline">
+                    Ver feria <ArrowRight size={16} />
+                  </Link>
+                  {enLinea && (
+                    <button type="button" className="link-btn cancelar-inscripcion no-print" onClick={() => setCancelando(actual)}>
+                      <CalendarX size={15} /> Cancelar inscripción
+                    </button>
+                  )}
+                </div>
+              </div>
+            </section>
             <Card title="Empresas que registraron tu visita" action={<span className="count-pill">{leadsFeria.length}</span>}>
               {leadsFeria.length === 0 ? (
                 <EmptyState icon={<Store />} title="Aún nadie escaneó tu QR">

@@ -934,3 +934,100 @@ textarea.input { resize: vertical; min-height: 44px; }
   .ferias-pasos { grid-template-columns: 1fr; }
   .ferias-pub { padding-top: 32px; }
 }
+
+/* ---------- Formulario de feria en dos columnas (sin scroll) ---------- */
+.modal.modal-feria { width: min(1040px, 100%); }
+.feria-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 20px 28px; align-items: start; }
+.feria-form-datos { gap: 14px 16px; }
+.feria-form-datos textarea { min-height: 78px; resize: vertical; }
+.feria-form-lateral { padding-left: 28px; border-left: 1px solid var(--line); align-self: stretch; }
+.feria-form-lateral .field { gap: 8px; }
+.feria-form-lateral .portada-editor { grid-template-columns: 1fr; gap: 10px; }
+.feria-form-pie { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.feria-form-acciones { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.feria-form-acciones .btn { min-width: 180px; }
+@media (max-width: 860px) {
+  .feria-form { grid-template-columns: 1fr; }
+  .feria-form-lateral { padding-left: 0; border-left: 0; }
+  .feria-form-acciones .btn { width: 100%; }
+}
+
+.form-lateral-titulo { font-size: 1rem; margin: 0 0 4px; }
+
+/* ---------- Mi tarjeta: saludo, mis ferias y feria seleccionada ---------- */
+.visitante-saludo { margin-bottom: 20px; }
+.visitante-saludo h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -0.025em; margin: 0 0 4px; }
+
+.mis-ferias { margin-bottom: 18px; }
+.mis-ferias-titulo { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pebble); margin: 0 0 10px; }
+.mis-ferias-lista { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
+.mi-feria { position: relative; flex: 0 0 auto; width: 300px; display: flex; align-items: center; gap: 12px; padding: 10px; text-align: left; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-subtle); color: var(--ink); cursor: pointer; scroll-snap-align: start; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; }
+.mi-feria:hover { border-color: var(--frost); box-shadow: var(--shadow-md); }
+.mi-feria.is-sel { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), var(--shadow-md); }
+.mi-feria.is-pasada:not(.is-sel) { opacity: 0.7; }
+.mi-feria .portada-mini { width: 88px; }
+.mi-feria-texto { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.mi-feria-texto strong { font-size: 0.95rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mi-feria-texto .badge { margin-top: 2px; font-size: 0.72rem; }
+.mi-feria-check { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; box-shadow: var(--shadow-subtle); }
+
+.feria-sel { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; align-items: center; margin-bottom: 24px; padding: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-subtle); }
+.feria-sel-portada { border-radius: var(--r); }
+.feria-sel-badges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.feria-sel-cuando { font-size: 0.85rem; font-weight: 700; color: var(--slate); }
+.feria-sel h2 { font-family: var(--font-display); font-size: clamp(1.4rem, 2.6vw, 1.9rem); letter-spacing: -0.02em; line-height: 1.15; margin: 8px 0 10px; }
+.feria-sel-meta { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--slate); font-size: 0.92rem; }
+.feria-sel-meta li { display: inline-flex; align-items: center; gap: 6px; }
+.feria-sel-meta a { color: var(--cobalt); font-weight: 600; }
+.feria-sel-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.feria-sel-acciones .cancelar-inscripcion { margin-left: auto; }
+
+.visitor-layout .empty { padding-top: 16px; padding-bottom: 16px; }
+
+@media (max-width: 760px) {
+  .feria-sel { grid-template-columns: 1fr; padding: 12px; }
+  .mi-feria { width: 260px; }
+  .feria-sel-acciones .cancelar-inscripcion { margin-left: 0; }
+}
+
+/* El ✓ de la feria elegida va dentro de la tarjeta (la fila recorta lo que sobresale). */
+.mi-feria-check { top: 8px; right: 8px; width: 20px; height: 20px; }
+.mi-feria { padding-right: 34px; }
+
+/* QR siempre a la vista: arriba a la izquierda y fijo al hacer scroll en pantallas grandes. */
+.visitor-layout { margin-top: 4px; }
+.visitor-qr { position: sticky; top: 20px; }
+.visitor-layout .feria-sel { grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 18px; margin-bottom: 0; padding: 14px; }
+.visitor-layout .feria-sel h2 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); margin: 6px 0 8px; }
+.visitor-layout .feria-sel-meta { margin-bottom: 12px; }
+@media (max-width: 900px) {
+  .visitor-qr { position: static; }
+}
+@media (max-width: 560px) {
+  .visitor-layout .feria-sel { grid-template-columns: 1fr; }
+}
+
+/* Mi tarjeta: el QR empieza arriba de todo, al nivel del saludo. */
+.visitor-layout-arriba { margin-top: 0; }
+.visitor-encabezado .visitante-saludo { margin-bottom: 12px; }
+.visitor-encabezado .mis-ferias { margin-bottom: 0; }
+.visitor-encabezado .alert { margin-bottom: 10px; }
+.visitor-encabezado .mi-feria { width: 270px; }
+@media (max-width: 900px) {
+  /* En el celular: saludo y mis ferias arriba, después el QR. */
+  .visitor-layout-arriba { display: flex; flex-direction: column; }
+  .visitor-layout-arriba > .stack { display: contents; }
+  .visitor-layout-arriba .visitor-encabezado { order: -1; }
+}
+
+/* Mis ferias: en pantallas grandes las tarjetas se reparten el ancho (sin barra de desplazamiento) y bajan a
+   otra fila si hay más; en el celular siguen como carrusel, sin barra visible. */
+.mis-ferias-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px; overflow: visible; padding: 2px; }
+.mis-ferias-lista .mi-feria,
+.visitor-encabezado .mi-feria { width: auto; min-width: 0; }
+.mi-feria .portada-mini { width: 76px; }
+@media (max-width: 760px) {
+  .mis-ferias-lista { display: flex; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .mis-ferias-lista::-webkit-scrollbar { display: none; }
+  .mis-ferias-lista .mi-feria { flex: 0 0 78%; }
+}
