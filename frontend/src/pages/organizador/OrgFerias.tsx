@@ -176,7 +176,12 @@ export default function OrgFerias() {
         </div>
       )}
 
-      <Modal open={editando !== null} onClose={() => setEditando(null)} title={editando === 'nueva' ? 'Nueva feria' : 'Editar feria'}>
+      <Modal
+        open={editando !== null}
+        onClose={() => setEditando(null)}
+        title={editando === 'nueva' ? 'Nueva feria' : 'Editar feria'}
+        className="modal-feria"
+      >
         {editando !== null && (
           <FormFeria
             inicial={editando === 'nueva' ? nuevaVacia() : editando}
@@ -256,21 +261,21 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
   }
 
   return (
-    <form onSubmit={enviar} className="stack">
-      <div className="form-grid">
+    <form onSubmit={enviar} className="feria-form">
+      <div className="form-grid feria-form-datos">
         <Field label="Nombre de la feria" full error={v.error('nombre')}>
           <input className="input" value={f.nombre} onChange={set('nombre')} onBlur={v.tocar('nombre')} aria-invalid={!!v.error('nombre')} maxLength={150} placeholder="Ej. Expo Negocios 2026" />
         </Field>
         <Field label="Fecha de inicio" error={v.error('fechaInicio')}>
           <input className="input" type="date" value={f.fechaInicio} onChange={set('fechaInicio')} onBlur={v.tocar('fechaInicio')} aria-invalid={!!v.error('fechaInicio')} />
         </Field>
-        <Field label="Fecha de fin" hint="Las inscripciones se cierran solas al terminar este día." error={v.error('fechaFin')}>
+        <Field label="Fecha de fin" hint="Las inscripciones cierran al terminar este día." error={v.error('fechaFin')}>
           <input className="input" type="date" value={f.fechaFin} min={f.fechaInicio} onChange={set('fechaFin')} onBlur={v.tocar('fechaFin')} aria-invalid={!!v.error('fechaFin')} />
         </Field>
-        <Field label="Lugar" hint="Dirección o recinto; los visitantes la abren en Google Maps." opcional>
+        <Field label="Lugar" hint="Los visitantes lo abren en Google Maps." opcional>
           <input className="input" value={f.lugar} onChange={set('lugar')} maxLength={255} placeholder="Ej. Centro de Convenciones, Quito" />
         </Field>
-        <Field label="Aforo" hint="Máximo de visitantes inscritos. Vacío = sin límite." error={v.error('aforo')} opcional>
+        <Field label="Aforo" hint="Máximo de inscritos. Vacío = sin límite." error={v.error('aforo')} opcional>
           <input
             onBlur={v.tocar('aforo')}
             aria-invalid={!!v.error('aforo')}
@@ -284,25 +289,31 @@ function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d:
             placeholder="Sin límite"
           />
         </Field>
+        <Field label="Descripción" full hint="La ven los visitantes al elegir la feria." opcional>
+          <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} maxLength={5000} />
+        </Field>
+      </div>
+      <div className="feria-form-lateral">
         <SelectorPortada
           nombre={f.nombre || 'Nueva feria'}
           portada={f.portada}
           portadaAlt={f.portadaAlt}
           onCambiar={(portada, portadaAlt) => setF((x) => ({ ...x, portada, portadaAlt }))}
         />
-        <Field label="Descripción" full hint="La ven los visitantes al elegir la feria.">
-          <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} maxLength={5000} />
-        </Field>
       </div>
-      <label className="switch-row">
-        <input type="checkbox" checked={f.inscripcionesAbiertas} onChange={(e) => setF({ ...f, inscripcionesAbiertas: e.target.checked })} />
-        <span className="switch" aria-hidden="true" />
-        <span>Recibir inscripciones de visitantes</span>
-      </label>
-      {error && <Alert>{error}</Alert>}
-      <button className="btn btn-primary btn-block" disabled={enviando}>
-        {enviando ? 'Guardando…' : 'Guardar feria'}
-      </button>
+      <div className="feria-form-pie">
+        {error && <Alert>{error}</Alert>}
+        <div className="feria-form-acciones">
+          <label className="switch-row">
+            <input type="checkbox" checked={f.inscripcionesAbiertas} onChange={(e) => setF({ ...f, inscripcionesAbiertas: e.target.checked })} />
+            <span className="switch" aria-hidden="true" />
+            <span>Recibir inscripciones de visitantes</span>
+          </label>
+          <button className="btn btn-primary" disabled={enviando}>
+            {enviando ? 'Guardando…' : 'Guardar feria'}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
@@ -363,7 +374,7 @@ function SelectorPortada({
         </span>
       ) : (
         <span className="field-hint">
-          Horizontal, se recorta a 16:9 (1200×675 px). Usa una imagen propia o con permiso de uso. Sin imagen se muestra una portada con los colores de la marca.
+          Se recorta a 16:9 (1200×675 px). Usa una imagen propia o con permiso de uso. Sin imagen se muestra la portada de la marca.
         </span>
       )}
       {portada && (

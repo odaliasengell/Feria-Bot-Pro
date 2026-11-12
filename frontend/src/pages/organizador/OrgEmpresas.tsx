@@ -130,7 +130,12 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
         </div>
       )}
 
-      <Modal open={editando !== null} onClose={() => setEditando(null)} title={editando === 'nueva' ? 'Nueva empresa' : 'Editar empresa'}>
+      <Modal
+        open={editando !== null}
+        onClose={() => setEditando(null)}
+        title={editando === 'nueva' ? 'Nueva empresa' : 'Editar empresa'}
+        className="modal-feria"
+      >
         {editando !== null && (
           <FormEmpresaBasica
             inicial={editando === 'nueva' ? vacia : datosDe(editando)}
@@ -210,8 +215,8 @@ function FormEmpresaBasica({
   }
 
   return (
-    <form onSubmit={enviar} className="stack">
-      <div className="form-grid">
+    <form onSubmit={enviar} className="feria-form">
+      <div className="form-grid feria-form-datos">
         <Field label="Nombre de la empresa" full error={v.error('nombre')}>
           <input className="input" value={f.nombre} onChange={set('nombre')} {...props('nombre')} maxLength={150} />
         </Field>
@@ -227,11 +232,25 @@ function FormEmpresaBasica({
         <Field label="Teléfono" error={v.error('telefono')}>
           <input className="input" type="tel" inputMode="tel" value={f.telefono} onChange={set('telefono')} {...props('telefono')} maxLength={40} placeholder="+593 99 123 4567" />
         </Field>
-        <Field label="Correo" hint="La empresa entra a su panel con este correo." error={v.error('email')}>
+        <Field label="Sitio web" opcional full error={v.error('sitioWeb')}>
+          <input className="input" type="url" inputMode="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} {...props('sitioWeb')} maxLength={255} placeholder="https://" />
+        </Field>
+        <Field label="Datos del negocio" full opcional hint="La empresa podrá ampliar esta descripción en su ficha.">
+          <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} />
+        </Field>
+      </div>
+      <div className="feria-form-lateral stack">
+        <div>
+          <h3 className="form-lateral-titulo">Acceso al panel</h3>
+          <p className="muted small">
+            {nueva ? 'Con estos datos la empresa entra a escanear visitantes y completar su ficha.' : 'Datos con los que la empresa entra a su panel.'}
+          </p>
+        </div>
+        <Field label="Correo" hint="Es también su correo de contacto." error={v.error('email')}>
           <input className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} {...props('email')} maxLength={150} />
         </Field>
         <Field
-          label="Contraseña de acceso"
+          label="Contraseña"
           opcional={!nueva}
           hint={nueva ? 'Le llegará por correo. Usa una contraseña segura.' : 'Déjala vacía para no cambiarla.'}
           error={v.error('password')}
@@ -246,17 +265,16 @@ function FormEmpresaBasica({
             visibleInicial
           />
         </Field>
-        <Field label="Sitio web" opcional error={v.error('sitioWeb')}>
-          <input className="input" type="url" inputMode="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} {...props('sitioWeb')} maxLength={255} placeholder="https://" />
-        </Field>
-        <Field label="Datos del negocio" full hint="La empresa podrá ampliar esta descripción en su ficha.">
-          <textarea className="input" rows={3} value={f.descripcion} onChange={set('descripcion')} />
-        </Field>
       </div>
-      {error && <Alert>{error}</Alert>}
-      <button className="btn btn-primary btn-block" disabled={enviando}>
-        {enviando ? 'Guardando…' : 'Guardar empresa'}
-      </button>
+      <div className="feria-form-pie">
+        {error && <Alert>{error}</Alert>}
+        <div className="feria-form-acciones">
+          <span className="muted small">Los campos sin «(opcional)» son obligatorios.</span>
+          <button className="btn btn-primary" disabled={enviando}>
+            {enviando ? 'Guardando…' : 'Guardar empresa'}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
