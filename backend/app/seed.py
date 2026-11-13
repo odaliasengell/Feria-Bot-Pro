@@ -16,7 +16,7 @@ from .database import Base, SessionLocal, engine
 from .migraciones import migrar
 from .models import CodigoVerificacion, Empresa, Feria, Inscripcion, Lead, Organizador, Visitante, VistaFicha
 from .security import hash_password
-from .utils import ahora, uid
+from .utils import ahora, ruc_persona_natural, uid
 
 PASSWORD_DEMO_EMPRESAS = "empresa123"
 
@@ -85,9 +85,9 @@ def cargar_demo(db: Session) -> None:
          ["Fertilizantes orgánicos", "Riego tecnificado", "Asesoría agronómica"],
          "Marcela Torres", "info@agroverde.com", "+593 95 300 9090", None, "B-03", 26),
     ]
-    for id_, nombre, rubro, desc, servicios, contacto, email, tel, web, stand, horas in empresas:
+    for n, (id_, nombre, rubro, desc, servicios, contacto, email, tel, web, stand, horas) in enumerate(empresas):
         db.add(Empresa(
-            id=id_, feria_id="feria-demo", nombre=nombre, rubro=rubro, descripcion=desc, servicios=servicios,
+            id=id_, feria_id="feria-demo", nombre=nombre, ruc=ruc_persona_natural(f"17{n}23456{n}"), rubro=rubro, descripcion=desc, servicios=servicios,
             contacto_nombre=contacto, email=email, telefono=tel, sitio_web=web, stand=stand,
             logo=None, fotos=[], password_hash=pw, creado_en=hace(60 * horas),
         ))

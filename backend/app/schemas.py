@@ -4,8 +4,10 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, PlainSerializer, field_validator, model_validator
 from pydantic.alias_generators import to_camel
+
+from .utils import error_ruc, normalizar_ruc
 
 Role = Literal["organizador", "visitante", "empresa"]
 Calificacion = Literal["interesado", "visita", "correo", "no_interesado"]
@@ -20,6 +22,18 @@ Fecha = Annotated[
     PlainSerializer(lambda d: d.replace(tzinfo=None).isoformat(timespec="milliseconds") + "Z", return_type=str),
 ]
 Password = Annotated[str, Field(min_length=6, max_length=72)]
+
+
+def _validar_ruc(v: object) -> str:
+    ruc = normalizar_ruc(str(v or ""))
+    motivo = error_ruc(ruc)
+    if motivo:
+        raise ValueError(motivo)
+    return ruc
+
+
+# RUC de Ecuador: se limpia (espacios, guiones) y se valida.
+Ruc = Annotated[str, BeforeValidator(_validar_ruc)]
 
 # ~1,5 MB en base64: una portada de 1200 px en JPEG pesa bastante menos.
 MAX_PORTADA = 2_000_000
@@ -213,6 +227,7 @@ class EscaneosHora(CamelModel):
 class EmpresaRanking(CamelModel):
     empresa_id: str
     nombre: str
+    logo: str | None = None
     leads: int
     vistas: int
 
@@ -229,6 +244,12 @@ class EstadisticasOut(CamelModel):
     escaneos_por_hora: list[EscaneosHora]
     ranking_empresas: list[EmpresaRanking]
     ciudades: list[CiudadTotal]
+    # Totales del resumen: así el panel no descarga las listas completas para contarlas.
+    total_empresas: int = 0
+    total_leads: int = 0
+    total_vistas: int = 0
+    leads_por_calificacion: dict[str, int] = {}
+    ultimos_visitantes: list["VisitanteOut"] = []
 
 
 class RecordatorioOut(CamelModel):
@@ -274,11 +295,14 @@ class EmpresaBase(CamelModel):
 
 class EmpresaCrear(EmpresaBase):
     feria_id: str
+    ruc: Ruc
     password: Password | None = None
 
 
 class EmpresaActualizar(CamelModel):
     nombre: str | None = Field(default=None, min_length=1, max_length=150)
+    # Solo el organizador lo cambia.
+    ruc: Ruc | None = None
     rubro: str | None = Field(default=None, max_length=100)
     descripcion: str | None = None
     servicios: list[str] | None = None
@@ -295,6 +319,7 @@ class EmpresaActualizar(CamelModel):
 class EmpresaOut(EmpresaBase):
     id: str
     feria_id: str
+    ruc: str | None = None
     email: str
     creado_en: Fecha
 
@@ -388,6 +413,24 @@ class VisitanteOut(CamelModel):
         return v or ""
 
 
+class VisitanteFila(VisitanteOut):
+    """Fila del listado paginado de visitantes de una feria."""
+
+    asistio_en: Fecha | None = None
+    # Empresas de la feria que lo registraron (leads).
+    leads: int = 0
+
+
+class PaginaVisitantes(CamelModel):
+    items: list[VisitanteFila]
+    total: int
+    pagina: int
+    por_pagina: int
+    # De toda la feria, sin el filtro de búsqueda.
+    total_feria: int
+    asistieron: int
+
+
 class AsistenciaOut(CamelModel):
     visitante: VisitanteOut
     asistio_en: Fecha
@@ -422,9 +465,39 @@ class LeadEstado(CamelModel):
     estado: EstadoLead
 
 
+class EmpresaBreveOut(CamelModel):
+    """Empresa dentro de un lead o una vista: sin fotos, descripción ni servicios (pesan y no se usan ahí)."""
+
+    id: str
+    feria_id: str
+    nombre: str
+    rubro: str
+    stand: str
+    email: str
+    telefono: str
+    logo: str | None = None
+
+
 class LeadDetalleOut(LeadOut):
     visitante: VisitanteOut | None = None
-    empresa: EmpresaOut | None = None
+    empresa: EmpresaBreveOut | None = None
+
+
+class EmpresaOpcion(CamelModel):
+    id: str
+    nombre: str
+
+
+class PaginaLeads(CamelModel):
+    items: list[LeadDetalleOut]
+    total: int
+    pagina: int
+    por_pagina: int
+    # Del alcance completo (feria o empresa), sin búsqueda ni filtros: para las tarjetas y la barra de interés.
+    total_sin_filtros: int
+    por_calificacion: dict[str, int]
+    # Empresas con leads, para el filtro del organizador.
+    empresas: list[EmpresaOpcion]
 
 
 # ---------- Vistas de ficha ----------
@@ -443,7 +516,7 @@ class VistaOut(CamelModel):
 
 
 class VistaDetalleOut(VistaOut):
-    empresa: EmpresaOut | None = None
+    empresa: EmpresaBreveOut | None = None
     visitante: VisitanteOut | None = None
 
 
@@ -472,3 +545,6 @@ class DocumentoLegal(CamelModel):
     actualizado: date
     responsable: ResponsableLegal
     secciones: list[SeccionLegal]
+
+
+EstadisticasOut.model_rebuild()

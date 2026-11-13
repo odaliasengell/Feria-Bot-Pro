@@ -60,10 +60,14 @@ class Feria(Base):
 
 class Empresa(Base):
     __tablename__ = "empresas"
+    # Una empresa no se repite (mismo RUC) dentro de una feria; sí puede estar en varias ferias.
+    __table_args__ = (UniqueConstraint("feria_id", "ruc", name="uq_empresa_feria_ruc"),)
 
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
     feria_id: Mapped[str] = mapped_column(ForeignKey("ferias.id", ondelete="CASCADE"), index=True)
     nombre: Mapped[str] = mapped_column(String(150), index=True)
+    # RUC de Ecuador (13 dígitos). NULL solo en empresas creadas antes de pedirlo.
+    ruc: Mapped[str | None] = mapped_column(String(13))
     rubro: Mapped[str] = mapped_column(String(100), default="")
     descripcion: Mapped[str] = mapped_column(Text)
     servicios: Mapped[list[str]] = mapped_column(JSON)

@@ -23,6 +23,7 @@ Crear las tablas y cargar los datos de demostración, y luego levantar la API:
 
 ```powershell
 .\.venv\Scripts\python -m app.seed       # --reset para borrar todo y recargar la demo
+.\.venv\Scripts\python -m app.datos_prueba  # carga masiva de prueba (8 ferias, 57 empresas, 300 visitantes); --reset / --borrar
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
 
@@ -269,7 +270,7 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `PATCH /empresas/:id` | Organizador, o la propia empresa | Cambios parciales; `password` cambia la contraseña |
 | `DELETE /empresas/:id` | Organizador | Borra en cascada sus leads, vistas y vendedores |
 | `GET /empresas/plantilla` | Público | Plantilla .xlsx vacía para la carga masiva (hojas Empresas e Instrucciones) |
-| `POST /empresas/importar?feriaId=` | Organizador | Multipart con el campo `archivo` (.xlsx, máx. 5 MB, 2000 filas). Columnas `nombre`, `rubro`, `stand`, `contacto`, `email`, `telefono`, `password` (obligatorias: nombre y email; acepta títulos con tildes como "Correo electrónico"). Devuelve `{ creadas, errores: [{ fila, motivo }] }`: las filas con errores (correo inválido, repetido o ya usado, contraseña corta…) no se cargan y no detienen al resto. 400 si el archivo no es un .xlsx o faltan columnas |
+| `POST /empresas/importar?feriaId=` | Organizador | Multipart con el campo `archivo` (.xlsx, máx. 5 MB, 2000 filas). Columnas `nombre`, `ruc`, `rubro`, `stand`, `contacto`, `email`, `telefono`, `password` (obligatorias: nombre, ruc y email; acepta títulos con tildes como "Correo electrónico"). Devuelve `{ creadas, errores: [{ fila, motivo }] }`: las filas con errores (correo inválido, repetido o ya usado, RUC inválido o ya registrado en la feria, contraseña corta…) no se cargan y no detienen al resto. 400 si el archivo no es un .xlsx o faltan columnas |
 | `GET /empresas/:id/usuarios` | Organizador, la cuenta principal de la empresa | Vendedores: `[{ id, empresaId, nombre, email, creadoEn }]` |
 | `POST /empresas/:id/usuarios` | Organizador, la cuenta principal de la empresa | `{ nombre, email, password }`; 409 si el correo ya lo usa una empresa o un vendedor; 201 |
 | `DELETE /empresas/:id/usuarios/:usuarioId` | Organizador, la cuenta principal de la empresa | Quita al vendedor; sus leads se conservan; 204 |

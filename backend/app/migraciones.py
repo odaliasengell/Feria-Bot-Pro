@@ -112,6 +112,18 @@ def _agregar_portada(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE ferias ADD COLUMN portada_alt VARCHAR(200) NOT NULL DEFAULT '' AFTER portada"))
 
 
+def _agregar_ruc(engine: Engine) -> None:
+    """RUC de la empresa, único dentro de cada feria."""
+    columnas = {c["name"] for c in inspect(engine).get_columns("empresas")}
+    if "ruc" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE empresas ADD COLUMN ruc VARCHAR(13) NULL AFTER nombre"))
+    restricciones = {u["name"] for u in inspect(engine).get_unique_constraints("empresas")}
+    if "uq_empresa_feria_ruc" not in restricciones:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE empresas ADD CONSTRAINT uq_empresa_feria_ruc UNIQUE (feria_id, ruc)"))
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
@@ -121,3 +133,4 @@ def migrar(engine: Engine) -> None:
     _agregar_registrado_por(engine)
     _agregar_estado_lead(engine)
     _agregar_portada(engine)
+    _agregar_ruc(engine)

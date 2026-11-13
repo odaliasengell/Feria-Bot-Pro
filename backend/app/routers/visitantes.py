@@ -1,15 +1,25 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
 from ..limites import limite, registrar_intento
-from ..models import CodigoVerificacion, Empresa, Inscripcion, Visitante
-from ..schemas import CambioCorreo, CambioCorreoEnviar, Sesion, VisitanteActualizar, VisitanteCrear, VisitanteOut
+from ..models import CodigoVerificacion, Empresa, Inscripcion, Lead, Visitante
+from ..paginacion import BuscarParam, PaginaParam, PorPaginaParam, coincide, recortar, total
+from ..schemas import (
+    CambioCorreo,
+    CambioCorreoEnviar,
+    PaginaVisitantes,
+    Sesion,
+    VisitanteActualizar,
+    VisitanteCrear,
+    VisitanteFila,
+    VisitanteOut,
+)
 from ..security import requiere, sesion_opcional, solo_propio
 from ..utils import ahora, generar_codigo, leer_codigo_visitante, uid
 from ..verificacion import crear_y_enviar, verificar
@@ -47,6 +57,55 @@ def listar(db: DB, feria_id: Annotated[str | None, Query(alias="feriaId")] = Non
     else:
         q = select(Visitante).order_by(Visitante.creado_en.desc())
     return db.scalars(q).all()
+
+
+@router.get("/pagina", response_model=PaginaVisitantes, dependencies=[Depends(requiere("organizador"))])
+def listar_pagina(
+    db: DB,
+    feria_id: Annotated[str, Query(alias="feriaId")],
+    q: BuscarParam = "",
+    asistio: Annotated[bool | None, Query(description="true: solo los que entraron; false: los que no")] = None,
+    pagina: PaginaParam = 1,
+    por_pagina: PorPaginaParam = 25,
+):
+    """Inscritos en una feria, de a una página, con su hora de entrada y cuántas empresas los registraron.
+
+    La búsqueda (nombre, código, correo, teléfono, empresa o ciudad) y el filtro de asistencia se hacen en la base.
+    """
+    obtener_feria(db, feria_id)
+    leads = (
+        select(func.count())
+        .select_from(Lead)
+        .join(Empresa, Empresa.id == Lead.empresa_id)
+        .where(Lead.visitante_id == Visitante.id, Empresa.feria_id == feria_id)
+        .correlate(Visitante)
+        .scalar_subquery()
+    )
+    base = (
+        select(Visitante, Inscripcion.asistio_en, leads.label("leads"))
+        .join(Inscripcion, Inscripcion.visitante_id == Visitante.id)
+        .where(Inscripcion.feria_id == feria_id)
+    )
+    resumen = db.execute(
+        select(func.count(), func.count(Inscripcion.asistio_en)).where(Inscripcion.feria_id == feria_id)
+    ).one()
+    filtro = coincide(q, Visitante.nombre, Visitante.codigo, Visitante.email, Visitante.telefono, Visitante.empresa, Visitante.ciudad)
+    if filtro is not None:
+        base = base.where(filtro)
+    if asistio is not None:
+        base = base.where(Inscripcion.asistio_en.is_not(None) if asistio else Inscripcion.asistio_en.is_(None))
+    filas = db.execute(recortar(base.order_by(Inscripcion.creado_en.desc(), Visitante.id), pagina, por_pagina)).all()
+    return PaginaVisitantes(
+        items=[
+            VisitanteFila.model_validate(v).model_copy(update={"asistio_en": asistio_en, "leads": n})
+            for v, asistio_en, n in filas
+        ],
+        total=total(db, base),
+        pagina=pagina,
+        por_pagina=por_pagina,
+        total_feria=resumen[0],
+        asistieron=resumen[1],
+    )
 
 
 @router.get("/buscar", response_model=VisitanteOut)

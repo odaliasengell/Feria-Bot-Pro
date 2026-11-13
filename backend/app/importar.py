@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Empresa, UsuarioEmpresa
+from .utils import error_ruc, normalizar_ruc
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_FILAS = 2000
@@ -21,6 +22,7 @@ MAX_FILAS = 2000
 # campo -> (títulos aceptados en la fila 1, largo máximo, obligatorio, ancho en la plantilla)
 COLUMNAS: dict[str, tuple[tuple[str, ...], int, bool, int]] = {
     "nombre": (("nombre", "empresa"), 150, True, 28),
+    "ruc": (("ruc",), 20, True, 16),
     "rubro": (("rubro",), 100, False, 22),
     "stand": (("stand",), 20, False, 8),
     "contacto": (("contacto", "persona de contacto"), 150, False, 24),
@@ -60,7 +62,7 @@ def _celda(valor) -> str:
     return str(valor).strip()
 
 
-def leer(contenido: bytes, db: Session) -> Resultado:
+def leer(contenido: bytes, db: Session, feria_id: str) -> Resultado:
     """Valida todas las filas; las inválidas van a `errores` con su número de fila de Excel."""
     if len(contenido) > MAX_BYTES:
         raise ArchivoInvalido("El archivo supera 5 MB.")
@@ -85,17 +87,19 @@ def leer(contenido: bytes, db: Session) -> Resultado:
 
     resultado = Resultado()
     vistos: set[str] = set()
+    rucs: set[str] = set()
     for n, fila in enumerate(filas, start=2):
         datos = {c: _celda(fila[i]) if i < len(fila) else "" for c, i in posiciones.items()}
         if not any(datos.values()):
             continue  # fila vacía
         if n - 1 > MAX_FILAS:
             raise ArchivoInvalido(f"El archivo tiene más de {MAX_FILAS} empresas.")
-        motivo = _validar(datos, vistos, db)
+        motivo = _validar(datos, vistos, db) or _validar_ruc(datos, rucs, db, feria_id)
         if motivo:
             resultado.errores.append((n, motivo))
         else:
             vistos.add(datos["email"])
+            rucs.add(datos["ruc"])
             resultado.validas.append(FilaValida(n, datos))
     wb.close()
     return resultado
@@ -125,6 +129,20 @@ def _validar(datos: dict[str, str], vistos: set[str], db: Session) -> str | None
     return None
 
 
+def _validar_ruc(datos: dict[str, str], vistos: set[str], db: Session, feria_id: str) -> str | None:
+    if not datos.get("ruc"):
+        return "Falta el RUC."
+    datos["ruc"] = normalizar_ruc(datos["ruc"])
+    motivo = error_ruc(datos["ruc"])
+    if motivo:
+        return motivo
+    if datos["ruc"] in vistos:
+        return f"El RUC {datos['ruc']} está repetido en el archivo."
+    if db.scalar(select(Empresa.id).where(Empresa.feria_id == feria_id, Empresa.ruc == datos["ruc"])):
+        return f"El RUC {datos['ruc']} ya está registrado en esta feria."
+    return None
+
+
 def plantilla_xlsx() -> bytes:
     wb = Workbook()
     ws = wb.active
@@ -134,12 +152,17 @@ def plantilla_xlsx() -> bytes:
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="0A0E1C" if obligatoria else "475269")
         ws.column_dimensions[get_column_letter(col)].width = ancho
+        if campo == "ruc":
+            # Como texto, para que Excel no quite el 0 inicial (RUC de las provincias 01-09).
+            for fila in range(2, 502):
+                ws.cell(row=fila, column=col).number_format = "@"
     ws.freeze_panes = "A2"
 
     ayuda = wb.create_sheet("Instrucciones")
     lineas = [
         "Una empresa por fila, desde la fila 2 de la hoja Empresas. No cambies los títulos de la fila 1.",
-        "Obligatorias: nombre y email (columnas oscuras). El correo no puede repetirse.",
+        "Obligatorias: nombre, ruc y email (columnas oscuras). El correo no puede repetirse.",
+        "ruc: los 13 dígitos del RUC (por ejemplo 1790012345001). No puede repetirse dentro de la feria.",
         "password (opcional, mínimo 6 caracteres): si la pones, la empresa puede entrar a su panel y recibe un correo con su acceso.",
         "Las filas con errores no se cargan; el resultado indica el número de fila y el motivo. Las demás sí se cargan.",
     ]

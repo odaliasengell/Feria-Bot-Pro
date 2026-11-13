@@ -3,13 +3,14 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import selectinload
 
 from ..database import DB
 from ..exportar import MIME_XLSX, generar_xlsx, nombre_archivo
-from ..models import Empresa, Feria, Lead
-from ..schemas import LeadDetalleOut, LeadEstado, LeadGuardar, LeadOut, Sesion
+from ..models import Empresa, Feria, Lead, Visitante
+from ..paginacion import BuscarParam, PaginaParam, PorPaginaParam, coincide, recortar, total
+from ..schemas import Calificacion, EmpresaOpcion, EstadoLead, LeadDetalleOut, LeadEstado, LeadGuardar, LeadOut, PaginaLeads, Sesion
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
 from .empresas import obtener_empresa
@@ -52,6 +53,51 @@ def listar(
     feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
 ):
     return db.scalars(consulta_leads(sesion, empresa_id, visitante_id, feria_id)).all()
+
+
+@router.get("/pagina", response_model=PaginaLeads)
+def listar_pagina(
+    db: DB,
+    sesion: Annotated[Sesion, Depends(requiere("organizador", "empresa"))],
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
+    empresa_id: Annotated[str | None, Query(alias="empresaId")] = None,
+    q: BuscarParam = "",
+    calificacion: Calificacion | None = None,
+    estado: EstadoLead | None = None,
+    pagina: PaginaParam = 1,
+    por_pagina: PorPaginaParam = 25,
+):
+    """Leads de a una página, con búsqueda y filtros en la base. Mismo alcance por rol que GET /leads.
+
+    `empresaId` del organizador filtra la tabla, pero las cifras (`totalSinFiltros`, `porCalificacion`) y la lista
+    `empresas` son de toda la feria.
+    """
+    alcance_base = consulta_leads(sesion, None if sesion.role == "organizador" else empresa_id, None, feria_id)
+    ids = alcance_base.with_only_columns(Lead.id).order_by(None)
+    por_cal = dict(db.execute(select(Lead.calificacion, func.count()).where(Lead.id.in_(ids)).group_by(Lead.calificacion)).all())
+    empresas = db.execute(
+        select(Empresa.id, Empresa.nombre)
+        .where(Empresa.id.in_(select(Lead.empresa_id).where(Lead.id.in_(ids))))
+        .order_by(Empresa.nombre)
+    ).all()
+
+    filtrada = consulta_leads(sesion, empresa_id, None, feria_id)
+    texto = coincide(q, Visitante.nombre, Visitante.email, Visitante.empresa, Visitante.ciudad, Empresa.nombre, Lead.nota, Lead.registrado_por)
+    if texto is not None:
+        filtrada = filtrada.join(Visitante, Visitante.id == Lead.visitante_id).join(Empresa, Empresa.id == Lead.empresa_id).where(texto)
+    if calificacion:
+        filtrada = filtrada.where(Lead.calificacion == calificacion)
+    if estado:
+        filtrada = filtrada.where(Lead.estado == estado)
+    return PaginaLeads(
+        items=db.scalars(recortar(filtrada.order_by(Lead.id), pagina, por_pagina)).all(),
+        total=total(db, filtrada),
+        pagina=pagina,
+        por_pagina=por_pagina,
+        total_sin_filtros=sum(por_cal.values()),
+        por_calificacion=por_cal,
+        empresas=[EmpresaOpcion(id=i, nombre=n) for i, n in empresas],
+    )
 
 
 @router.get(

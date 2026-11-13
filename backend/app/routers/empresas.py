@@ -29,6 +29,16 @@ router = APIRouter(prefix="/empresas", tags=["empresas"])
 _ANULABLES = {"sitio_web", "logo"}
 
 
+def _validar_ruc_libre(db: Session, feria_id: str, ruc: str, excepto: str | None = None) -> None:
+    """El mismo RUC no puede estar dos veces en una feria."""
+    q = select(Empresa.nombre).where(Empresa.feria_id == feria_id, Empresa.ruc == ruc)
+    if excepto:
+        q = q.where(Empresa.id != excepto)
+    otra = db.scalar(q)
+    if otra:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"El RUC {ruc} ya está registrado en esta feria ({otra}).")
+
+
 def obtener_empresa(db: Session, empresa_id: str) -> Empresa:
     empresa = db.get(Empresa, empresa_id)
     if not empresa:
@@ -84,7 +94,7 @@ async def importar(
     feria = obtener_feria(db, feria_id)
     contenido = await archivo.read()
     try:
-        resultado = leer(contenido, db)
+        resultado = leer(contenido, db, feria.id)
     except ArchivoInvalido as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
@@ -96,6 +106,7 @@ async def importar(
                 id=uid("emp-"),
                 feria_id=feria.id,
                 nombre=d["nombre"],
+                ruc=d["ruc"],
                 rubro=d.get("rubro", ""),
                 stand=d.get("stand", ""),
                 contacto_nombre=d.get("contacto", ""),
@@ -132,6 +143,7 @@ def crear(data: EmpresaCrear, db: DB, tareas: BackgroundTasks):
     campos["email"] = campos["email"].lower()
     _validar_email_libre(db, campos["email"])
     feria = obtener_feria(db, data.feria_id)
+    _validar_ruc_libre(db, feria.id, data.ruc)
     empresa = Empresa(
         **campos,
         id=uid("emp-"),
@@ -164,6 +176,14 @@ def actualizar(
     if datos.get("email"):
         datos["email"] = datos["email"].lower()
         _validar_email_libre(db, datos["email"], excepto=empresa.id)
+    if "ruc" in datos:
+        ruc = datos.pop("ruc")
+        if ruc and ruc != empresa.ruc:
+            # La empresa ve su RUC pero no lo cambia: es el dato con el que el organizador la identifica.
+            if sesion.role != "organizador":
+                raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el organizador puede cambiar el RUC.")
+            _validar_ruc_libre(db, empresa.feria_id, ruc, excepto=empresa.id)
+            empresa.ruc = ruc
 
     for campo, valor in datos.items():
         if valor is None and campo not in _ANULABLES:

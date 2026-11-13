@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, noload, selectinload
 
 from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
@@ -268,6 +268,12 @@ def listar_inscripciones(
         q = q.where(Inscripcion.visitante_id == visitante_id)
     if feria_id:
         q = q.where(Inscripcion.feria_id == feria_id)
+    if sesion.role == "organizador" and feria_id:
+        # El organizador ya tiene la feria: repetirla (con su portada) en cada inscripción pesa megas.
+        solo = select(Inscripcion).options(noload(Inscripcion.feria)).where(Inscripcion.feria_id == feria_id).order_by(Inscripcion.creado_en.desc())
+        if visitante_id:
+            solo = solo.where(Inscripcion.visitante_id == visitante_id)
+        return db.scalars(solo).all()
     inscripciones = db.scalars(q).all()
     totales = {f.id: f for f in _con_totales(db, list({i.feria.id: i.feria for i in inscripciones}.values()))}
     return [InscripcionOut.model_validate(i).model_copy(update={"feria": totales.get(i.feria_id)}) for i in inscripciones]

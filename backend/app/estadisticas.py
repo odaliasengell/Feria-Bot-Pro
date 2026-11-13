@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .models import Empresa, Feria, Inscripcion, Lead, Visitante, VistaFicha
-from .schemas import CiudadTotal, EmpresaRanking, EscaneosHora, EstadisticasOut, InscritosDia
+from .models import CALIFICACIONES
+from .schemas import CiudadTotal, EmpresaRanking, EscaneosHora, EstadisticasOut, InscritosDia, VisitanteOut
 
 SIN_CIUDAD = "Sin ciudad"
 
@@ -61,7 +62,7 @@ def calcular(db: Session, feria: Feria) -> EstadisticasOut:
         .where(Inscripcion.feria_id == feria.id)
     ).all()
 
-    empresas = db.execute(select(Empresa.id, Empresa.nombre).where(Empresa.feria_id == feria.id)).all()
+    empresas = db.execute(select(Empresa.id, Empresa.nombre, Empresa.logo).where(Empresa.feria_id == feria.id)).all()
     ids = [e.id for e in empresas]
     leads = dict(
         db.execute(select(Lead.empresa_id, func.count()).where(Lead.empresa_id.in_(ids)).group_by(Lead.empresa_id)).all()
@@ -72,9 +73,19 @@ def calcular(db: Session, feria: Feria) -> EstadisticasOut:
         ).all()
     ) if ids else {}
     escaneos = db.scalars(select(Lead.creado_en).where(Lead.empresa_id.in_(ids))).all() if ids else []
+    calificaciones = dict(
+        db.execute(select(Lead.calificacion, func.count()).where(Lead.empresa_id.in_(ids)).group_by(Lead.calificacion)).all()
+    ) if ids else {}
+    ultimos = db.scalars(
+        select(Visitante)
+        .join(Inscripcion, Inscripcion.visitante_id == Visitante.id)
+        .where(Inscripcion.feria_id == feria.id)
+        .order_by(Inscripcion.creado_en.desc())
+        .limit(5)
+    ).all()
 
     ranking = sorted(
-        (EmpresaRanking(empresa_id=e.id, nombre=e.nombre, leads=leads.get(e.id, 0), vistas=vistas.get(e.id, 0)) for e in empresas),
+        (EmpresaRanking(empresa_id=e.id, nombre=e.nombre, logo=e.logo, leads=leads.get(e.id, 0), vistas=vistas.get(e.id, 0)) for e in empresas),
         key=lambda r: (-r.leads, -r.vistas, r.nombre.casefold()),
     )
 
@@ -85,4 +96,9 @@ def calcular(db: Session, feria: Feria) -> EstadisticasOut:
         escaneos_por_hora=_escaneos_por_hora(list(escaneos)),
         ranking_empresas=ranking,
         ciudades=_ciudades([i.ciudad or "" for i in inscripciones]),
+        total_empresas=len(empresas),
+        total_leads=len(escaneos),
+        total_vistas=sum(vistas.values()),
+        leads_por_calificacion={c: calificaciones.get(c, 0) for c in CALIFICACIONES},
+        ultimos_visitantes=[VisitanteOut.model_validate(v) for v in ultimos],
     )

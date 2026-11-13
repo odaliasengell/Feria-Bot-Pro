@@ -60,7 +60,11 @@ async def error_validacion(_: Request, exc: RequestValidationError):
     partes = []
     for e in exc.errors():
         campo = ".".join(str(x) for x in e["loc"] if x not in ("body", "query", "path"))
-        partes.append(f"{campo}: {e['msg']}" if campo else e["msg"])
+        if e["type"] == "value_error":
+            # Mensajes propios (RUC, etc.): ya están escritos para el usuario.
+            partes.append(e["msg"].removeprefix("Value error, "))
+        else:
+            partes.append(f"{campo}: {e['msg']}" if campo else e["msg"])
     return JSONResponse(status_code=422, content={"detail": "; ".join(partes), "errors": jsonable_encoder(exc.errors())})
 
 
