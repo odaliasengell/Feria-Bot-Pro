@@ -8,6 +8,7 @@ import { useAsync } from '../lib/useAsync';
 import { rangoFechas, type Tone } from '../lib/utils';
 import { Alert, Avatar, EmptyState, Loader } from '../components/ui';
 import PortadaFeria from '../components/PortadaFeria';
+import { jsonLdFeria, usePagina } from '../lib/seo';
 
 const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
   proxima: { label: 'Próxima', tone: 'blue' },
@@ -27,16 +28,23 @@ export default function FeriaDetalle() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [id]);
-  useEffect(() => {
-    if (feria) document.title = `${feria.nombre} · FeriaBot Pro`;
-  }, [feria]);
+  usePagina({
+    titulo: feria?.nombre ?? 'Feria',
+    descripcion: feria
+      ? feria.descripcion ||
+        `${feria.nombre}${feria.lugar ? ` en ${feria.lugar}` : ''}: ${feria.totalEmpresas} empresas participantes. Regístrate y recibe tu tarjeta con QR.`
+      : undefined,
+    imagen: feria?.portada,
+    jsonLd: feria ? jsonLdFeria(feria) : null,
+    tipo: 'event',
+  });
 
   return (
     <div className="landing">
       <nav className="topnav">
         <div className="topnav-inner">
           <Link to="/" className="brand">
-            <img src="/favicon.png" alt="" width={32} height={32} />
+            <img src="/logo-64.png" alt="" width={32} height={32} />
             <span>
               FeriaBot <b>Pro</b>
             </span>

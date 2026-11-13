@@ -66,6 +66,9 @@ export default defineConfig({
     port: 5173,
     // Con VITE_API_URL=/api el frontend y la API salen por el mismo puerto (útil para túneles).
     proxy: {
+      // robots.txt y sitemap.xml los genera la API con las ferias publicadas.
+      '/robots.txt': { target: 'http://localhost:8000', changeOrigin: true },
+      '/sitemap.xml': { target: 'http://localhost:8000', changeOrigin: true },
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,

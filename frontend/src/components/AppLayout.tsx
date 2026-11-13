@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Avatar, Modal } from './ui';
+import { usePagina } from '../lib/seo';
 import { FeriaSelector } from './FeriaSelector';
 
 const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boolean }[]> = {
@@ -56,6 +57,8 @@ const ROL_LABEL: Record<Role, string> = {
 export default function AppLayout({ role }: { role: Role }) {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
+  // Paneles privados: fuera de los buscadores.
+  usePagina({ titulo: ROL_LABEL[role], noIndex: true });
   const toast = useToast();
   const [confirmarSalida, setConfirmarSalida] = useState(false);
   /** Los botones de cerrar sesión primero piden confirmación. */
@@ -71,7 +74,7 @@ export default function AppLayout({ role }: { role: Role }) {
     <div className="app" data-role={role}>
       <aside className="sidebar">
         <NavLink to="/" className="brand">
-          <img src="/favicon.png" alt="" width={34} height={34} />
+          <img src="/logo-64.png" alt="" width={34} height={34} />
           <span>
             FeriaBot <b>Pro</b>
           </span>
@@ -102,7 +105,7 @@ export default function AppLayout({ role }: { role: Role }) {
 
       <header className="topbar">
         <NavLink to="/" className="brand">
-          <img src="/favicon.png" alt="" width={30} height={30} />
+          <img src="/logo-64.png" alt="" width={30} height={30} />
           <span>
             FeriaBot <b>Pro</b>
           </span>

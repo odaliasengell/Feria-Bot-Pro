@@ -11,6 +11,7 @@ import CodigoCorreo from '../components/CodigoCorreo';
 import PortadaFeria from '../components/PortadaFeria';
 import AceptoPolitica from '../components/AceptoPolitica';
 import FormVisitante, { erroresVisitante, visitanteVacio } from './organizador/FormVisitante';
+import { usePagina } from '../lib/seo';
 import { useValidacion } from '../lib/useValidacion';
 
 /**
@@ -19,6 +20,10 @@ import { useValidacion } from '../lib/useValidacion';
  */
 export default function RegistroVisitante() {
   const { feriaId } = useParams();
+  usePagina({
+    titulo: 'Registro de visitante',
+    descripcion: 'Regístrate en la feria en un minuto y recibe tu tarjeta con QR para que las empresas guarden tu visita.',
+  });
   const [elegida, setElegida] = useState<Feria | null>(null);
   const { data, cargando } = useAsync(
     () => (feriaId ? feriasApi.obtener(feriaId).then((f) => (f ? [f] : [])) : feriasApi.listar(true)),
@@ -31,7 +36,7 @@ export default function RegistroVisitante() {
     <div className="auth-page">
       <div className="auth-side tone-teal">
         <Link to="/" className="brand">
-          <img src="/favicon.png" alt="" width={36} height={36} />
+          <img src="/logo-64.png" alt="" width={36} height={36} />
           <span>
             FeriaBot <b>Pro</b>
           </span>
@@ -114,6 +119,7 @@ function ElegirFeria({ ferias, onElegir }: { ferias: Feria[]; onElegir: (f: Feri
 
 function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiarFeria?: () => void }) {
   const [form, setForm] = useState(visitanteVacio);
+  const [trampa, setTrampa] = useState('');
   const [acepta, setAcepta] = useState(false);
   const [paso, setPaso] = useState<'datos' | 'codigo'>('datos');
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +131,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
   const v = useValidacion(erroresVisitante(form));
 
   async function registrar(codigoVerificacion?: string) {
-    const v = await visitantesApi.crear(feria.id, form, codigoVerificacion);
+    const v = await visitantesApi.crear(feria.id, form, codigoVerificacion, trampa);
     login(await authApi.visitante(v.codigo));
     navigate(`/visitante?nuevo=1&feria=${encodeURIComponent(feria.id)}`);
   }
@@ -147,7 +153,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
     setYaTieneCuenta(false);
     try {
       if (email) {
-        await authApi.enviarCodigo(email, 'registro');
+        await authApi.enviarCodigo(email, 'registro', trampa);
         setPaso('codigo');
       } else {
         await registrar();
@@ -202,6 +208,13 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
       <p className="muted">Completa tus datos para recibir tu tarjeta con QR personal.</p>
       <form className="auth-form" onSubmit={enviar}>
         <FormVisitante value={form} onChange={setForm} error={v.error} tocar={v.tocar} />
+        {/* Campo trampa: invisible para las personas; los bots que llenan todo quedan bloqueados en el backend. */}
+        <div className="campo-trampa" aria-hidden="true">
+          <label>
+            Sitio web de tu empresa
+            <input type="text" name="empresa_web" tabIndex={-1} autoComplete="off" value={trampa} onChange={(e) => setTrampa(e.target.value)} />
+          </label>
+        </div>
         <AceptoPolitica checked={acepta} onChange={setAcepta} />
         {error && (
           <Alert tone="orange">
@@ -231,7 +244,7 @@ function FormularioRegistro({ feria, onCambiarFeria }: { feria: Feria; onCambiar
         textoBoton="Obtener mi tarjeta QR"
         onVerificar={registrar}
         onReenviar={async () => {
-          await authApi.enviarCodigo(email, 'registro');
+          await authApi.enviarCodigo(email, 'registro', trampa);
         }}
         onCambiarCorreo={() => {
           setError(null);

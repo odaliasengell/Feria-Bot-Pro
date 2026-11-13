@@ -1,15 +1,21 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, FileText, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Cookie, FileText, Scale, ShieldCheck } from 'lucide-react';
 import type { SlugLegal } from '../types';
 import { legalApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { Alert, Loader } from '../components/ui';
+import { usePagina } from '../lib/seo';
 
-const OTRO: Record<SlugLegal, { slug: SlugLegal; titulo: string }> = {
-  privacidad: { slug: 'tratamiento-datos', titulo: 'Tratamiento de datos personales' },
-  'tratamiento-datos': { slug: 'privacidad', titulo: 'Política de privacidad' },
-};
+/** Todos los documentos legales, en el orden en que se enlazan al pie de cada uno. */
+export const DOCUMENTOS_LEGALES: { slug: SlugLegal; titulo: string }[] = [
+  { slug: 'aviso-legal', titulo: 'Aviso legal' },
+  { slug: 'privacidad', titulo: 'Política de privacidad' },
+  { slug: 'tratamiento-datos', titulo: 'Tratamiento de datos personales' },
+  { slug: 'cookies', titulo: 'Política de cookies' },
+];
+
+const ICONO = { privacidad: ShieldCheck, 'tratamiento-datos': FileText, 'aviso-legal': Scale, cookies: Cookie } as const;
 
 function fechaLarga(iso: string): string {
   const [a, m, d] = iso.split('-').map(Number);
@@ -23,19 +29,20 @@ export default function Legal({ slug }: { slug: SlugLegal }) {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [slug]);
-  useEffect(() => {
-    if (doc) document.title = `${doc.titulo} · FeriaBot Pro`;
-  }, [doc]);
+  usePagina({
+    titulo: doc?.titulo ?? DOCUMENTOS_LEGALES.find((d) => d.slug === slug)?.titulo,
+    descripcion: doc?.resumen,
+  });
 
-  const otro = OTRO[slug];
-  const Icono = slug === 'privacidad' ? ShieldCheck : FileText;
+  const otros = DOCUMENTOS_LEGALES.filter((d) => d.slug !== slug);
+  const Icono = ICONO[slug];
 
   return (
     <div className="legal-page">
       <nav className="topnav">
         <div className="topnav-inner">
           <Link to="/" className="brand">
-            <img src="/favicon.png" alt="" width={32} height={32} />
+            <img src="/logo-64.png" alt="" width={32} height={32} />
             <span>
               FeriaBot <b>Pro</b>
             </span>
@@ -91,9 +98,13 @@ export default function Legal({ slug }: { slug: SlugLegal }) {
               <span className="muted small">Consultas: </span>
               <a href={`mailto:${doc.responsable.email}`}>{doc.responsable.email}</a>
               <span className="grow" />
-              <Link to={`/${otro.slug}`} className="btn btn-outline btn-sm">
-                Ver {otro.titulo}
-              </Link>
+              <nav className="legal-otros" aria-label="Otros documentos legales">
+                {otros.map((o) => (
+                  <Link key={o.slug} to={`/${o.slug}`} className="btn btn-outline btn-sm">
+                    {o.titulo}
+                  </Link>
+                ))}
+              </nav>
             </footer>
           </article>
         ) : null}

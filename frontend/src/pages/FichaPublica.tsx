@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { ApiError, empresasApi, feriasApi, inscripcionesApi, vistasApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { rangoFechas } from '../lib/utils';
+import { usePagina } from '../lib/seo';
 import { Avatar, EmptyState, Loader } from '../components/ui';
 
 /** Ficha digital de una empresa. Es lo que abre el QR del stand. */
@@ -25,6 +26,24 @@ export default function FichaPublica() {
   const [inscribiendo, setInscribiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fotoActiva, setFotoActiva] = useState<string | null>(null);
+  usePagina({
+    titulo: empresa ? `${empresa.nombre}${empresa.stand ? ` · Stand ${empresa.stand}` : ''}` : 'Ficha de empresa',
+    descripcion: empresa
+      ? empresa.descripcion || `${empresa.nombre}, ${empresa.rubro}${feria ? ` en ${feria.nombre}` : ''}: servicios, fotos y contacto.`
+      : undefined,
+    imagen: empresa?.logo,
+    jsonLd: empresa
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: empresa.nombre,
+          description: empresa.descripcion || empresa.rubro,
+          url: empresa.sitioWeb || undefined,
+          email: empresa.email,
+          telephone: empresa.telefono,
+        }
+      : null,
+  });
 
   useEffect(() => {
     if (empresa && session?.role === 'visitante' && session.refId) {
@@ -190,7 +209,7 @@ export default function FichaPublica() {
 
       {fotoActiva && (
         <div className="lightbox" onClick={() => setFotoActiva(null)}>
-          <img src={fotoActiva} alt="" />
+          <img src={fotoActiva} alt={`Foto ampliada de ${empresa?.nombre ?? 'la empresa'}`} />
         </div>
       )}
     </div>

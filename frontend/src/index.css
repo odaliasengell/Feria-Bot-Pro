@@ -14,7 +14,7 @@
   --ink: #0a0e1c;
   --slate: #475269;
   --pebble: #56575a;
-  --fog: #868789;
+  --fog: #6b6c70; /* 5,2:1 sobre blanco (antes #868789, 3,6:1: no llegaba a WCAG AA) */
   --mist: #9ea0a5;
   --lavender: #a8b2c8;
 
@@ -1031,3 +1031,32 @@ textarea.input { resize: vertical; min-height: 44px; }
   .mis-ferias-lista::-webkit-scrollbar { display: none; }
   .mis-ferias-lista .mi-feria { flex: 0 0 78%; }
 }
+
+/* ---------- Contraste: --mist solo sobre fondos oscuros; en fondos claros, --fog ---------- */
+.cell-contact a svg, .cmd-bar .prompt, .qr-code-block .c { color: var(--fog); }
+
+/* ---------- Portada: una llamada a la acción principal ---------- */
+.hero-secundarios { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; font-size: 0.95rem; color: var(--pebble); }
+.hero-secundarios a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
+
+/* ---------- Aviso de cookies ---------- */
+.aviso-cookies { position: fixed; left: 20px; bottom: 20px; z-index: 90; display: flex; align-items: center; gap: 14px; max-width: min(560px, calc(100vw - 40px)); padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-lg); animation: toast-entra 0.25s ease-out; }
+.aviso-cookies p { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--slate); }
+.aviso-cookies-icono { flex: none; color: var(--moss); }
+.aviso-cookies .btn { flex: none; }
+@media (max-width: 860px) {
+  .aviso-cookies { left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-width: none; flex-wrap: wrap; }
+}
+
+/* ---------- Campo trampa: fuera de la vista y del lector de pantalla ---------- */
+.campo-trampa { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* ---------- Textos legales: enlaces a los demás documentos ---------- */
+.legal-otros { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- 404 ---------- */
+.no-encontrada { max-width: 620px; margin: 0 auto; padding: 96px 20px 120px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; position: relative; }
+.no-encontrada-codigo { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-family: var(--font-display); font-weight: 700; font-size: clamp(7rem, 22vw, 11rem); line-height: 1; color: var(--line); z-index: -1; user-select: none; }
+.no-encontrada-icono { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--ink); margin-top: 40px; }
+.no-encontrada h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.4rem); letter-spacing: -0.02em; margin: 6px 0 0; }
+.no-encontrada-acciones { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 8px 0; }

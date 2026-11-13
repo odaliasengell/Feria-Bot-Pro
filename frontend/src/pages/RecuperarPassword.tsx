@@ -8,6 +8,7 @@ import CodigoCorreo from '../components/CodigoCorreo';
 import PasswordInput from '../components/PasswordInput';
 import { useToast } from '../context/ToastContext';
 import { errorConfirmacion, errorEmail, errorPassword } from '../lib/validacion';
+import { usePagina } from '../lib/seo';
 import { useValidacion } from '../lib/useValidacion';
 
 type RolConPassword = 'empresa' | 'organizador';
@@ -18,6 +19,7 @@ export default function RecuperarPassword() {
   const role: RolConPassword = params.get('rol') === 'organizador' ? 'organizador' : 'empresa';
   const { login } = useAuth();
   const navigate = useNavigate();
+  usePagina({ titulo: 'Recuperar contraseña', noIndex: true });
 
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [paso, setPaso] = useState<'correo' | 'codigo'>('correo');
@@ -56,7 +58,7 @@ export default function RecuperarPassword() {
     <div className="auth-page">
       <div className="auth-side">
         <Link to="/" className="brand">
-          <img src="/favicon.png" alt="" width={36} height={36} />
+          <img src="/logo-64.png" alt="" width={36} height={36} />
           <span>
             FeriaBot <b>Pro</b>
           </span>

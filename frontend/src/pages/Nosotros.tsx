@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { usePagina } from '../lib/seo';
 import {
   ArrowLeft,
   ArrowRight,
@@ -90,15 +91,18 @@ const ROLES: Rol[] = [
 export default function Nosotros() {
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = 'Nosotros · FeriaBot Pro';
   }, []);
+  usePagina({
+    titulo: 'Nosotros',
+    descripcion: 'Qué es FeriaBot Pro y cómo ayuda a organizadores, empresas y visitantes a aprovechar cada feria.',
+  });
 
   return (
     <div className="landing">
       <nav className="topnav">
         <div className="topnav-inner">
           <Link to="/" className="brand">
-            <img src="/favicon.png" alt="" width={32} height={32} />
+            <img src="/logo-64.png" alt="" width={32} height={32} />
             <span>
               FeriaBot <b>Pro</b>
             </span>
@@ -197,8 +201,9 @@ export default function Nosotros() {
         <div className="foot-legal">
           <span>© {new Date().getFullYear()} FeriaBot Pro</span>
           <span>
-            <Link to="/">Inicio</Link> · <Link to="/privacidad">Política de privacidad</Link> ·{' '}
-            <Link to="/tratamiento-datos">Tratamiento de datos</Link>
+            <Link to="/">Inicio</Link> · <Link to="/aviso-legal">Aviso legal</Link> ·{' '}
+            <Link to="/privacidad">Política de privacidad</Link> · <Link to="/tratamiento-datos">Tratamiento de datos</Link> ·{' '}
+            <Link to="/cookies">Cookies</Link>
           </span>
         </div>
       </footer>

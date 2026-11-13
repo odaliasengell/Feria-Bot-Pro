@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, CalendarCheck, MapPin, QrCode, ScanLine, Search, Store, Users, X } from 'lucide-react';
 import type { EstadoFeria, Feria } from '../types';
@@ -7,6 +7,7 @@ import { useAsync } from '../lib/useAsync';
 import { normalizar, rangoFechas, type Tone } from '../lib/utils';
 import { Alert, EmptyState, Loader } from '../components/ui';
 import PortadaFeria from '../components/PortadaFeria';
+import { usePagina } from '../lib/seo';
 
 type Filtro = 'todas' | EstadoFeria;
 
@@ -53,9 +54,10 @@ export default function Ferias() {
   // Una sola llamada con todas las ferias: así cada pestaña muestra cuántas tiene.
   const { data, cargando, error, recargar } = useAsync(() => feriasApi.listar(), []);
 
-  useEffect(() => {
-    document.title = 'Ferias · FeriaBot Pro';
-  }, []);
+  usePagina({
+    titulo: 'Ferias',
+    descripcion: 'Calendario de ferias: las que están en curso, las próximas y las que ya terminaron. Regístrate y recibe tu tarjeta con QR.',
+  });
 
   const todas = useMemo(() => [...(data ?? [])].sort(ordenar), [data]);
   const cantidad = useMemo(() => {
@@ -94,7 +96,7 @@ export default function Ferias() {
       <nav className="topnav">
         <div className="topnav-inner">
           <Link to="/" className="brand">
-            <img src="/favicon.png" alt="" width={32} height={32} />
+            <img src="/logo-64.png" alt="" width={32} height={32} />
             <span>
               FeriaBot <b>Pro</b>
             </span>

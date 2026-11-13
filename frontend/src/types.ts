@@ -164,7 +164,7 @@ export type NuevaEmpresa = Omit<Empresa, 'id' | 'creadoEn'>;
 export type NuevoVisitante = Omit<Visitante, 'id' | 'codigo' | 'creadoEn'>;
 
 /** Textos legales estáticos servidos por el backend (GET /legal/:slug). */
-export type SlugLegal = 'privacidad' | 'tratamiento-datos';
+export type SlugLegal = 'privacidad' | 'tratamiento-datos' | 'aviso-legal' | 'cookies';
 
 export interface DocumentoLegal {
   slug: SlugLegal;

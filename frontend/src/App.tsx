@@ -1,32 +1,35 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Role } from './types';
 import { useAuth } from './context/AuthContext';
 import { FeriaProvider } from './context/FeriaContext';
+import { Loader } from './components/ui';
+import AvisoCookies from './components/AvisoCookies';
 import AppLayout from './components/AppLayout';
 import Landing from './pages/Landing';
-import Ingresar from './pages/Ingresar';
-import RegistroVisitante from './pages/RegistroVisitante';
-import RecuperarPassword from './pages/RecuperarPassword';
-import FichaPublica from './pages/FichaPublica';
-import Legal from './pages/Legal';
-import Perfil from './pages/Perfil';
-import Nosotros from './pages/Nosotros';
-import Ferias from './pages/Ferias';
-import FeriaDetalle from './pages/FeriaDetalle';
-import OrgFerias from './pages/organizador/OrgFerias';
-import OrgResumen from './pages/organizador/OrgResumen';
-import OrgEmpresas from './pages/organizador/OrgEmpresas';
-import OrgVisitantes from './pages/organizador/OrgVisitantes';
-import OrgLeads from './pages/organizador/OrgLeads';
-import OrgAcceso from './pages/organizador/OrgAcceso';
-import EmpresaLeads from './pages/empresa/EmpresaLeads';
-import EmpresaEscanear from './pages/empresa/EmpresaEscanear';
-import EmpresaFicha from './pages/empresa/EmpresaFicha';
-import EmpresaEquipo from './pages/empresa/EmpresaEquipo';
-import VisitanteTarjeta from './pages/visitante/VisitanteTarjeta';
-import VisitanteEscanear from './pages/visitante/VisitanteEscanear';
-import VisitanteCuenta from './pages/visitante/VisitanteCuenta';
+const Ingresar = lazy(() => import('./pages/Ingresar'));
+const RegistroVisitante = lazy(() => import('./pages/RegistroVisitante'));
+const RecuperarPassword = lazy(() => import('./pages/RecuperarPassword'));
+const FichaPublica = lazy(() => import('./pages/FichaPublica'));
+const Legal = lazy(() => import('./pages/Legal'));
+const NoEncontrada = lazy(() => import('./pages/NoEncontrada'));
+const Perfil = lazy(() => import('./pages/Perfil'));
+const Nosotros = lazy(() => import('./pages/Nosotros'));
+const Ferias = lazy(() => import('./pages/Ferias'));
+const FeriaDetalle = lazy(() => import('./pages/FeriaDetalle'));
+const OrgFerias = lazy(() => import('./pages/organizador/OrgFerias'));
+const OrgResumen = lazy(() => import('./pages/organizador/OrgResumen'));
+const OrgEmpresas = lazy(() => import('./pages/organizador/OrgEmpresas'));
+const OrgVisitantes = lazy(() => import('./pages/organizador/OrgVisitantes'));
+const OrgLeads = lazy(() => import('./pages/organizador/OrgLeads'));
+const OrgAcceso = lazy(() => import('./pages/organizador/OrgAcceso'));
+const EmpresaLeads = lazy(() => import('./pages/empresa/EmpresaLeads'));
+const EmpresaEscanear = lazy(() => import('./pages/empresa/EmpresaEscanear'));
+const EmpresaFicha = lazy(() => import('./pages/empresa/EmpresaFicha'));
+const EmpresaEquipo = lazy(() => import('./pages/empresa/EmpresaEquipo'));
+const VisitanteTarjeta = lazy(() => import('./pages/visitante/VisitanteTarjeta'));
+const VisitanteEscanear = lazy(() => import('./pages/visitante/VisitanteEscanear'));
+const VisitanteCuenta = lazy(() => import('./pages/visitante/VisitanteCuenta'));
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { session } = useAuth();
@@ -36,6 +39,8 @@ function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
 
 export default function App() {
   return (
+    <>
+    <Suspense fallback={<Loader />}>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/ingresar" element={<Ingresar />} />
@@ -48,6 +53,8 @@ export default function App() {
       <Route path="/nosotros" element={<Nosotros />} />
       <Route path="/privacidad" element={<Legal slug="privacidad" />} />
       <Route path="/tratamiento-datos" element={<Legal slug="tratamiento-datos" />} />
+      <Route path="/aviso-legal" element={<Legal slug="aviso-legal" />} />
+      <Route path="/cookies" element={<Legal slug="cookies" />} />
 
       <Route
         path="/organizador"
@@ -82,7 +89,10 @@ export default function App() {
         <Route path="cuenta" element={<VisitanteCuenta />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NoEncontrada />} />
     </Routes>
+    </Suspense>
+    <AvisoCookies />
+    </>
   );
 }

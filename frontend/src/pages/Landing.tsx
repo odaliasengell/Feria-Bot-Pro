@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { jsonLdOrganizacion, usePagina } from '../lib/seo';
 
 interface Columna {
   tone: 'blue' | 'teal' | 'orange';
@@ -69,13 +70,18 @@ const QR_ON = [0, 1, 2, 4, 6, 7, 8, 13, 14, 16, 20, 22, 24, 25, 28, 30, 34, 35, 
 
 export default function Landing() {
   const { session } = useAuth();
+  usePagina({
+    descripcion:
+      'Regístrate en la feria, recibe tu tarjeta con QR y guarda los contactos de cada stand. Las empresas califican sus leads y el organizador ve todo en tiempo real.',
+    jsonLd: jsonLdOrganizacion(),
+  });
 
   return (
     <div className="landing">
       <nav className="topnav">
         <div className="topnav-inner">
           <Link to="/" className="brand">
-            <img src="/favicon.png" alt="" width={32} height={32} />
+            <img src="/logo-64.png" alt="" width={32} height={32} />
             <span>
               FeriaBot <b>Pro</b>
             </span>
@@ -113,17 +119,21 @@ export default function Landing() {
             FeriaBot Pro conecta organizadores, visitantes y empresas en un solo flujo: credenciales con QR, fichas
             digitales de cada stand y leads ordenados sin papeles.
           </p>
+          {/* Una sola llamada a la acción principal; el resto, como enlaces secundarios. */}
           <div className="hero-ctas">
             <Link to="/registro" className="btn btn-accent btn-lg">
-              Soy visitante <ArrowRight size={18} />
-            </Link>
-            <Link to="/ingresar?rol=empresa" className="btn btn-primary btn-lg">
-              <Store size={18} /> Soy empresa <ArrowRight size={18} />
-            </Link>
-            <Link to="/ferias" className="btn btn-outline btn-lg">
-              <CalendarDays size={18} /> Ver ferias
+              Obtener mi tarjeta QR gratis <ArrowRight size={18} />
             </Link>
           </div>
+          <p className="hero-secundarios">
+            <Link to="/ferias">
+              <CalendarDays size={15} /> Ver ferias
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/ingresar?rol=empresa">
+              <Store size={15} /> Soy empresa
+            </Link>
+          </p>
           <div className="cmd-bar" aria-label="Ejemplo de escaneo">
             <span className="prompt">$</span>
             <code>
@@ -264,7 +274,7 @@ export default function Landing() {
         <div className="foot-inner">
           <div>
             <Link to="/" className="brand">
-              <img src="/favicon.png" alt="" width={30} height={30} />
+              <img src="/logo-64.png" alt="" width={30} height={30} />
               <span>
                 FeriaBot <b>Pro</b>
               </span>
@@ -287,8 +297,10 @@ export default function Landing() {
           </div>
           <div className="foot-col">
             <h4>Legal</h4>
+            <Link to="/aviso-legal">Aviso legal</Link>
             <Link to="/privacidad">Política de privacidad</Link>
             <Link to="/tratamiento-datos">Tratamiento de datos</Link>
+            <Link to="/cookies">Política de cookies</Link>
           </div>
         </div>
         <div className="foot-legal">

@@ -143,8 +143,9 @@ export const authApi = {
   /** Ingreso con el código de la tarjeta o el contenido del QR. */
   visitante: (codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante', { codigo }),
   /** Envía un código de 6 dígitos al correo, para registrarse o para ingresar. */
-  enviarCodigo: (email: string, proposito: 'registro' | 'ingreso') =>
-    pedir<{ email: string; minutos: number }>('POST', '/auth/enviar-codigo', { email, proposito }),
+  /** `empresaWeb` es el campo trampa del formulario: siempre vacío para una persona. */
+  enviarCodigo: (email: string, proposito: 'registro' | 'ingreso', empresaWeb = '') =>
+    pedir<{ email: string; minutos: number }>('POST', '/auth/enviar-codigo', { email, proposito, empresaWeb }),
   /** Ingreso del visitante con su correo y el código recibido. */
   visitanteCorreo: (email: string, codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante/correo', { email, codigo }),
   /** Olvidé mi contraseña: envía un código al correo (responde igual aunque la cuenta no exista). */
@@ -255,8 +256,8 @@ export const visitantesApi = {
    * `authApi.enviarCodigo`. Siempre envía `aceptaPolitica: true`: llámalo solo con la casilla de la política
    * de privacidad y tratamiento de datos marcada (el backend responde 400 sin ella). Si el organizador usa un correo que ya tiene cuenta, se inscribe esa cuenta.
    */
-  crear: (feriaId: string, data: NuevoVisitante, codigoVerificacion?: string) =>
-    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, aceptaPolitica: true, codigoVerificacion }),
+  crear: (feriaId: string, data: NuevoVisitante, codigoVerificacion?: string, empresaWeb = '') =>
+    pedir<Visitante>('POST', '/visitantes', { ...data, feriaId, aceptaPolitica: true, codigoVerificacion, empresaWeb }),
 
   eliminar: (id: string) => pedir<void>('DELETE', `/visitantes/${encodeURIComponent(id)}`),
 };

@@ -8,6 +8,7 @@ import { Alert, Field } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
 import PasswordInput from '../components/PasswordInput';
 import { errorCodigoTarjeta, errorEmail } from '../lib/validacion';
+import { usePagina } from '../lib/seo';
 import { useValidacion } from '../lib/useValidacion';
 
 const ROLES: { id: Role; label: string; icon: typeof Store; desc: string }[] = [
@@ -25,6 +26,7 @@ export default function Ingresar() {
   const [rol, setRol] = useState<Role>(ROLES.some((r) => r.id === inicial) ? inicial : 'visitante');
   const { login } = useAuth();
   const navigate = useNavigate();
+  usePagina({ titulo: 'Ingresar', noIndex: true });
 
   const [codigo, setCodigo] = useState('');
   const [email, setEmail] = useState('');
@@ -71,7 +73,7 @@ export default function Ingresar() {
     <div className="auth-page">
       <div className="auth-side">
         <Link to="/" className="brand">
-          <img src="/favicon.png" alt="" width={36} height={36} />
+          <img src="/logo-64.png" alt="" width={36} height={36} />
           <span>
             FeriaBot <b>Pro</b>
           </span>
