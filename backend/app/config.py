@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     # las estadísticas agrupan por día y hora locales.
     zona_horaria_utc: int = -5
 
-    # Dirección del frontend, para los enlaces de los correos (botón "Entrar").
+    # Producción: redirige http → https y envía HSTS (déjalo en false en desarrollo, que usa http).
+    forzar_https: bool = False
+    # Límite de intentos por IP en inicios de sesión, códigos por correo y registro (anti spam).
+    limites_activos: bool = True
+
+    # Dirección del frontend, para los enlaces de los correos (botón "Entrar") y el sitemap.
     frontend_url: str = "http://localhost:5173"
 
     # Versión vigente de la política de privacidad y tratamiento de datos. Al cambiar el texto de la

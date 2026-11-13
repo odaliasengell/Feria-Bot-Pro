@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..database import DB
+from ..limites import limite
 from ..models import Empresa, Organizador, UsuarioEmpresa, Visitante
 from ..schemas import (
     CambiarCorreo,
@@ -50,7 +51,13 @@ def _sesion_de(cuenta: Cuenta) -> Sesion:
     return Sesion(role=role, ref_id=cuenta.id, nombre=cuenta.nombre)
 
 
-@router.post("/organizador", response_model=TokenOut)
+# Inicios de sesión: 10 intentos cada 5 minutos por IP; códigos por correo: 5 cada 10 minutos.
+LIMITE_LOGIN = [Depends(limite("login", 10, 300))]
+LIMITE_CODIGOS = [Depends(limite("codigos", 5, 600))]
+SPAM = "No se pudo completar la solicitud."
+
+
+@router.post("/organizador", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_organizador(data: LoginPassword, db: DB):
     org = db.scalar(select(Organizador).where(Organizador.email == data.email.lower()))
     if not org or not verificar_password(data.password, org.password_hash):
@@ -58,7 +65,7 @@ def login_organizador(data: LoginPassword, db: DB):
     return _token(Sesion(role="organizador", ref_id=org.id, nombre=org.nombre))
 
 
-@router.post("/empresa", response_model=TokenOut)
+@router.post("/empresa", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_empresa(data: LoginPassword, db: DB):
     """La empresa con su correo principal o uno de sus vendedores con el suyo."""
     email = data.email.lower()
@@ -75,7 +82,7 @@ def login_empresa(data: LoginPassword, db: DB):
     return _token(_sesion_de(cuenta))
 
 
-@router.post("/visitante", response_model=TokenOut)
+@router.post("/visitante", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_visitante(data: LoginVisitante, db: DB):
     """Ingreso con el código de la tarjeta o el contenido del QR. Con correo se usa /auth/visitante/correo."""
     if "@" in data.codigo:
@@ -89,9 +96,11 @@ def login_visitante(data: LoginVisitante, db: DB):
     return _token(Sesion(role="visitante", ref_id=v.id, nombre=v.nombre))
 
 
-@router.post("/enviar-codigo", response_model=EnviarCodigoOut)
+@router.post("/enviar-codigo", response_model=EnviarCodigoOut, dependencies=LIMITE_CODIGOS)
 def enviar_codigo(data: EnviarCodigo, db: DB):
     """Envía un código de 6 dígitos al correo, para registrarse (`registro`) o ingresar (`ingreso`)."""
+    if data.empresa_web.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, SPAM)
     email = data.email.lower()
     existe = db.scalar(select(Visitante.id).where(Visitante.email == email)) is not None
     if data.proposito == "registro" and existe:
@@ -102,7 +111,7 @@ def enviar_codigo(data: EnviarCodigo, db: DB):
     return EnviarCodigoOut(email=email, minutos=settings.codigo_minutos)
 
 
-@router.post("/visitante/correo", response_model=TokenOut)
+@router.post("/visitante/correo", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_visitante_correo(data: LoginVisitanteCorreo, db: DB):
     email = data.email.lower()
     v = db.scalar(select(Visitante).where(Visitante.email == email))
@@ -121,7 +130,7 @@ def _cuenta_con_password(db: DB, role: str, email: str) -> Cuenta | None:
     )
 
 
-@router.post("/recuperar/enviar-codigo", response_model=EnviarCodigoOut)
+@router.post("/recuperar/enviar-codigo", response_model=EnviarCodigoOut, dependencies=LIMITE_CODIGOS)
 def recuperar_enviar_codigo(data: RecuperarEnviar, db: DB):
     """Olvidé mi contraseña (empresa u organizador): envía un código al correo de la cuenta."""
     email = data.email.lower()
@@ -131,7 +140,7 @@ def recuperar_enviar_codigo(data: RecuperarEnviar, db: DB):
     return EnviarCodigoOut(email=email, minutos=settings.codigo_minutos)
 
 
-@router.post("/recuperar/cambiar", response_model=TokenOut)
+@router.post("/recuperar/cambiar", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def recuperar_cambiar(data: RecuperarCambiar, db: DB):
     """Cambia la contraseña con el código recibido e inicia sesión."""
     email = data.email.lower()

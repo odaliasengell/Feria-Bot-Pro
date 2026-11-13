@@ -58,7 +58,9 @@ suelen cambiarse; el resto tiene un valor por defecto razonable.
 | `MAIL_FROM_NAME` | `FeriaBot Pro` | Nombre del remitente y de la app en los correos |
 | `CODIGO_MINUTOS` | `10` | Vigencia de los códigos de verificación |
 | `ZONA_HORARIA_UTC` | `-5` | Diferencia con UTC de la hora local (Ecuador). Las fechas se guardan en UTC; las estadísticas y el Excel de leads usan la hora local |
-| `FRONTEND_URL` | `http://localhost:5173` | Dirección del frontend para los botones de los correos. Cambiarla al publicar la app |
+| `FRONTEND_URL` | `http://localhost:5173` | Dirección pública del frontend: botones de los correos, `robots.txt` y `sitemap.xml`. Cambiarla al publicar la app |
+| `FORZAR_HTTPS` | `false` | En producción, `true`: redirige http → https (respeta `X-Forwarded-Proto` detrás de un proxy) y envía HSTS |
+| `LIMITES_ACTIVOS` | `true` | Límite de intentos por IP contra spam y fuerza bruta (ver «Protección contra spam»). `false` solo para pruebas |
 | `POLITICA_VERSION` | `2026-10` | Versión vigente de la política de privacidad. Subirla cuando cambien los textos legales |
 | `RESPONSABLE_NOMBRE` · `RESPONSABLE_RUC` · `RESPONSABLE_DIRECCION` · `RESPONSABLE_EMAIL` · `RESPONSABLE_TELEFONO` | `FeriaBot Pro` · vacío · `Quito, Ecuador` · `privacidad@feriabot.com` · vacío | Responsable del tratamiento de datos que aparece en los textos legales (LOPDP) |
 
@@ -81,10 +83,35 @@ app/
   estadisticas.py   cálculo de GET /ferias/:id/estadisticas
   exportar.py       Excel de leads (GET /leads/exportar)
   importar.py       carga masiva de empresas y su plantilla
-  legal.py          textos de la política de privacidad y del tratamiento de datos (LOPDP)
+  legal.py          textos legales: privacidad, tratamiento de datos (LOPDP), aviso legal y cookies
+  limites.py        límite de intentos por IP (anti spam)
   plantillas/       HTML de los correos
-  routers/          auth, ferias (+ inscripciones), empresas, visitantes, leads, vistas, legal, demo
+  routers/          auth, ferias (+ inscripciones), empresas, visitantes, leads, vistas, legal, sitio (robots y sitemap), demo
 ```
+
+## Protección contra spam y seguridad
+
+- **Límite de intentos por IP** (`app/limites.py`): inicios de sesión 10 cada 5 minutos, códigos por correo 5 cada
+  10 minutos y registro público 10 cada 10 minutos (el organizador no tiene límite). Al pasarlo responde 429 con
+  `Retry-After`. Es un contador en memoria: vale para un proceso; con varios, usar uno compartido (Redis).
+- **Campo trampa (honeypot)**: el formulario de registro envía `empresaWeb` oculto y vacío; si llega con texto,
+  `POST /visitantes` y `POST /auth/enviar-codigo` responden 400.
+- **Cabeceras**: `X-Content-Type-Options`, `Referrer-Policy` y `X-Frame-Options` siempre; HSTS con `FORZAR_HTTPS`.
+- En desarrollo todas las peticiones pasan por el proxy de Vite y comparten la IP 127.0.0.1: si haces muchas
+  pruebas seguidas y ves «Demasiados intentos», reinicia el backend o pon `LIMITES_ACTIVOS=false`.
+
+## Publicación
+
+- **HTTPS**: el hosting (Vercel, Render, Railway…) entrega el certificado; activa `FORZAR_HTTPS=true` en la API.
+- **Detrás de un proxy**, arranca uvicorn con `--proxy-headers --forwarded-allow-ips="*"` para que el límite de
+  intentos vea la IP real de cada visitante y la redirección a https lea `X-Forwarded-Proto`.
+- **robots.txt y sitemap.xml** los genera la API (`GET /robots.txt`, `GET /sitemap.xml`) con `FRONTEND_URL` y las
+  ferias y fichas publicadas. En el hosting del frontend hay que reenviar esas dos rutas a la API (en desarrollo lo
+  hace el proxy de Vite). Después, registra el sitemap en Google Search Console.
+- **Frontend** (`frontend/.env`): `VITE_SITE_URL` con el dominio (URL canónica, Open Graph y datos estructurados) y,
+  para la analítica sin cookies, `VITE_ANALITICA` (`umami` o `plausible`) y `VITE_ANALITICA_ID`.
+- **Ficha de Google (Business Profile)**: se crea en https://business.google.com con el nombre, la dirección y el
+  sitio web; no depende del código.
 
 ## Ferias
 
@@ -283,8 +310,9 @@ Credenciales de la demo: organizador `admin@feriabot.com` / `admin123`; cada emp
 | `POST /auth/cambiar-password` · `POST /auth/cambiar-correo` | Organizador, empresa | Sobre la propia cuenta (o la del vendedor) |
 | `GET /auth/me` | Con sesión | La sesión del token |
 | `GET /politica` | Público | `{ version }` de la política de privacidad vigente |
-| `GET /legal/:slug` | Público | `privacidad` o `tratamiento-datos`: `{ slug, titulo, resumen, version, actualizado, responsable: { nombre, ruc, direccion, email, telefono }, secciones: [{ titulo, parrafos, lista }] }`. El responsable sale de `RESPONSABLE_*`; 404 con los disponibles si el slug no existe |
+| `GET /legal/:slug` | Público | `privacidad`, `tratamiento-datos`, `aviso-legal` o `cookies`: `{ slug, titulo, resumen, version, actualizado, responsable: { nombre, ruc, direccion, email, telefono }, secciones: [{ titulo, parrafos, lista }] }`. El responsable sale de `RESPONSABLE_*`; 404 con los disponibles si el slug no existe |
 | `POST /demo/reiniciar` | Organizador | Borra todo y recarga la demo. Solo con `DEMO_MODE=true` |
+| `GET /robots.txt` · `GET /sitemap.xml` | Público | Para buscadores; usan `FRONTEND_URL`. El sitemap lista las páginas públicas, cada feria y cada ficha de stand |
 | `GET /health` | Público | `{ ok: true }` |
 
 Errores: `{ "detail": "mensaje" }` con 400 (dato incorrecto, código vencido), 401 (sin sesión), 403 (sin

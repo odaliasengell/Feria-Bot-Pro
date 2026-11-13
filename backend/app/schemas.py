@@ -65,6 +65,8 @@ class LoginVisitante(CamelModel):
 class EnviarCodigo(CamelModel):
     email: EmailStr
     proposito: PropositoVisitante
+    # Campo trampa (oculto en el formulario): una persona lo deja vacío; un bot suele llenarlo.
+    empresa_web: str = Field(default="", max_length=200)
 
 
 class EnviarCodigoOut(CamelModel):
@@ -327,6 +329,8 @@ class ImportacionOut(CamelModel):
 class VisitanteCrear(CamelModel):
     # Feria a la que se inscribe al registrarse.
     feria_id: str
+    # Campo trampa (oculto en el formulario): una persona lo deja vacío; un bot suele llenarlo.
+    empresa_web: str = Field(default="", max_length=200)
     nombre: str = Field(min_length=1, max_length=150)
     telefono: str = Field(default="", max_length=40)
     email: str = Field(default="", max_length=150)
@@ -461,7 +465,7 @@ class ResponsableLegal(CamelModel):
 
 
 class DocumentoLegal(CamelModel):
-    slug: Literal["privacidad", "tratamiento-datos"]
+    slug: Literal["privacidad", "tratamiento-datos", "aviso-legal", "cookies"]
     titulo: str
     resumen: str
     version: str

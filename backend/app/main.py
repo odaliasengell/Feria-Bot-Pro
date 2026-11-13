@@ -4,12 +4,12 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
-from .routers import auth, demo, empresas, ferias, leads, legal, visitantes, vistas
+from .routers import auth, demo, empresas, ferias, leads, legal, sitio, visitantes, vistas
 from .seed import crear_organizador_inicial
 
 
@@ -34,6 +34,26 @@ app.add_middleware(
 )
 
 
+_LOCALES = {"localhost", "127.0.0.1", "::1"}
+
+
+@app.middleware("http")
+async def https_y_cabeceras(request: Request, siguiente):
+    """Con FORZAR_HTTPS redirige http → https (detrás de un proxy, respetando X-Forwarded-Proto) y envía HSTS.
+    Siempre agrega cabeceras de seguridad básicas."""
+    if settings.forzar_https and request.url.hostname not in _LOCALES:
+        esquema = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+        if esquema == "http":
+            return RedirectResponse(str(request.url.replace(scheme="https")), status_code=308)
+    respuesta = await siguiente(request)
+    respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    respuesta.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    respuesta.headers.setdefault("X-Frame-Options", "DENY")
+    if settings.forzar_https:
+        respuesta.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return respuesta
+
+
 @app.exception_handler(RequestValidationError)
 async def error_validacion(_: Request, exc: RequestValidationError):
     """`detail` como texto legible (el frontend muestra `error.message`); el detalle completo va en `errors`."""
@@ -44,7 +64,7 @@ async def error_validacion(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": "; ".join(partes), "errors": jsonable_encoder(exc.errors())})
 
 
-for r in (auth, ferias, empresas, visitantes, leads, vistas, demo, legal):
+for r in (auth, ferias, empresas, visitantes, leads, vistas, demo, legal, sitio):
     app.include_router(r.router)
 
 

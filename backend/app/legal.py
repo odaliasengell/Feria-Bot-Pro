@@ -1,4 +1,4 @@
-"""Textos legales estáticos: Política de privacidad y Tratamiento de datos personales.
+"""Textos legales estáticos: Política de privacidad, Tratamiento de datos personales, Aviso legal y Política de cookies.
 
 Redactados conforme a la Ley Orgánica de Protección de Datos Personales del Ecuador (LOPDP, Registro Oficial
 Suplemento 459 del 26 de mayo de 2021) y su Reglamento. Si cambia el contenido de cualquiera de los dos textos,
@@ -241,7 +241,142 @@ def _tratamiento() -> dict:
     }
 
 
-_DOCUMENTOS = {"privacidad": _privacidad, "tratamiento-datos": _tratamiento}
+def _aviso_legal() -> dict:
+    r = settings.responsable_nombre
+    return {
+        "titulo": "Aviso legal",
+        "resumen": (
+            f"Quién es el titular de {r}, en qué condiciones puedes usar la plataforma y qué responsabilidades asume "
+            "cada parte: organizadores, empresas participantes y visitantes."
+        ),
+        "secciones": [
+            {
+                "titulo": "1. Titular de la plataforma",
+                "parrafos": [
+                    f"Esta plataforma es operada por {_identificacion()}. Puedes contactarnos a través de {_contacto()}.",
+                ],
+            },
+            {
+                "titulo": "2. Objeto",
+                "parrafos": [
+                    f"{r} es una herramienta para gestionar ferias: el organizador publica ferias y registra empresas "
+                    "participantes, los visitantes se inscriben y reciben una credencial con QR, y las empresas registran "
+                    "los contactos que conocen en su stand.",
+                ],
+            },
+            {
+                "titulo": "3. Condiciones de uso",
+                "lista": [
+                    "Debes dar datos verdaderos y mantenerlos actualizados.",
+                    "Tu código de visitante y las contraseñas de las cuentas son personales: no los compartas.",
+                    "No está permitido usar la plataforma para enviar publicidad no solicitada, suplantar a otras personas, "
+                    "intentar acceder a cuentas ajenas ni afectar su funcionamiento.",
+                    "Podemos suspender cuentas que incumplan estas condiciones.",
+                ],
+            },
+            {
+                "titulo": "4. Contenido de las empresas y de los organizadores",
+                "parrafos": [
+                    "La información de cada feria la publica su organizador, y la ficha de cada stand (descripción, servicios, "
+                    "fotos y datos de contacto) la publica la propia empresa. Cada uno es responsable de que ese contenido "
+                    "sea veraz y de contar con los derechos sobre las imágenes que sube.",
+                    "Los contactos que una empresa obtiene al escanear un QR pasan a estar bajo su responsabilidad, según la "
+                    "Política de privacidad.",
+                ],
+            },
+            {
+                "titulo": "5. Propiedad intelectual",
+                "parrafos": [
+                    f"El diseño, el código y la marca {r} pertenecen a su titular. No se permite copiarlos ni distribuirlos sin "
+                    "autorización. Los logotipos, fotos y textos de cada empresa pertenecen a sus respectivos titulares.",
+                ],
+            },
+            {
+                "titulo": "6. Responsabilidad",
+                "parrafos": [
+                    "Trabajamos para que la plataforma esté disponible y funcione bien, pero puede haber interrupciones por "
+                    "mantenimiento o causas ajenas. No respondemos por los acuerdos comerciales entre visitantes y empresas "
+                    "ni por cambios de fecha, lugar o cancelaciones de una feria decididos por su organizador.",
+                ],
+            },
+            {
+                "titulo": "7. Enlaces a otros sitios",
+                "parrafos": [
+                    "Algunas páginas enlazan a servicios de terceros, como Google Maps, WhatsApp o el sitio web de una empresa. "
+                    "Esos sitios tienen sus propias condiciones y políticas.",
+                ],
+            },
+            {
+                "titulo": "8. Ley aplicable",
+                "parrafos": [
+                    "Estas condiciones se rigen por las leyes de la República del Ecuador. Cualquier controversia se someterá a "
+                    "los jueces competentes del domicilio del titular.",
+                ],
+            },
+        ],
+    }
+
+
+def _cookies() -> dict:
+    r = settings.responsable_nombre
+    return {
+        "titulo": "Política de cookies",
+        "resumen": (
+            f"{r} no usa cookies de publicidad ni de seguimiento. Aquí te contamos qué guardamos en tu navegador, "
+            "para qué sirve y cómo borrarlo."
+        ),
+        "secciones": [
+            {
+                "titulo": "1. Qué guardamos en tu navegador",
+                "parrafos": [
+                    "En lugar de cookies usamos el almacenamiento local del navegador, solo para que la plataforma funcione:",
+                ],
+                "lista": [
+                    "Tu sesión: para que no tengas que ingresar en cada página. Se borra al cerrar sesión.",
+                    "Preferencias: por ejemplo, la feria que el organizador está administrando o que ya viste el aviso de cookies.",
+                    "Tu tarjeta sin conexión: la app guarda una copia de tu credencial y tus datos de la feria para mostrarla "
+                    "aunque no tengas internet en el recinto. Se borra al cerrar sesión.",
+                ],
+            },
+            {
+                "titulo": "2. Estadísticas de uso",
+                "parrafos": [
+                    "Para saber qué páginas se visitan y mejorar la plataforma usamos un servicio de analítica que no instala "
+                    "cookies ni guarda datos personales: solo cuenta visitas de forma agregada y anónima. No se usa para "
+                    "publicidad ni se comparte con terceros para otros fines.",
+                ],
+            },
+            {
+                "titulo": "3. Servicios de terceros",
+                "parrafos": [
+                    "Las tipografías de la página se cargan desde Google Fonts, por lo que tu navegador se conecta a servidores "
+                    "de Google. Si abres el mapa de un lugar o escribes a una empresa por WhatsApp, pasas a sitios de terceros "
+                    "con sus propias políticas.",
+                ],
+            },
+            {
+                "titulo": "4. Cómo borrar estos datos",
+                "parrafos": [
+                    "Puedes borrar el almacenamiento del sitio desde la configuración de tu navegador (en Chrome: Configuración "
+                    "› Privacidad y seguridad › Datos de sitios). Si lo haces, se cerrará tu sesión y tendrás que volver a ingresar.",
+                ],
+            },
+            {
+                "titulo": "5. Más información",
+                "parrafos": [
+                    f"Para saber cómo tratamos tus datos personales revisa la Política de privacidad. Si tienes dudas, escribe a {_contacto()}.",
+                ],
+            },
+        ],
+    }
+
+
+_DOCUMENTOS = {
+    "privacidad": _privacidad,
+    "tratamiento-datos": _tratamiento,
+    "aviso-legal": _aviso_legal,
+    "cookies": _cookies,
+}
 
 
 def slugs() -> list[str]:

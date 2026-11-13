@@ -1,12 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
+from ..limites import limite, registrar_intento
 from ..models import CodigoVerificacion, Empresa, Inscripcion, Visitante
 from ..schemas import CambioCorreo, CambioCorreoEnviar, Sesion, VisitanteActualizar, VisitanteCrear, VisitanteOut
 from ..security import requiere, sesion_opcional, solo_propio
@@ -98,7 +99,7 @@ def actualizar_mi_cuenta(cambios: VisitanteActualizar, db: DB, sesion: SesionVis
     return visitante
 
 
-@router.post("/me/correo/enviar-codigo", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/me/correo/enviar-codigo", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(limite("codigos", 5, 600))])
 def enviar_codigo_cambio_correo(data: CambioCorreoEnviar, db: DB, sesion: SesionVisitante):
     """Envía un código de 6 dígitos al correo nuevo para confirmar que es del visitante."""
     visitante = obtener_visitante(db, sesion.ref_id)
@@ -151,6 +152,7 @@ def crear(
     db: DB,
     sesion: Annotated[Sesion | None, Depends(sesion_opcional)],
     tareas: BackgroundTasks,
+    request: Request,
 ):
     """Registro del visitante en una feria (también lo usa el organizador en la entrada).
 
@@ -158,6 +160,12 @@ def crear(
     código enviado a ese correo; el organizador no lo necesita. Si quien ya tiene cuenta quiere entrar a otra
     feria, debe ingresar e inscribirse (POST /inscripciones); el organizador lo inscribe directamente aquí.
     """
+    if not (sesion is not None and sesion.role == "organizador"):
+        # Registro público: campo trampa y máximo 10 registros cada 10 minutos por IP (el organizador en la
+        # entrada registra a muchos desde el mismo equipo y no tiene límite).
+        if data.empresa_web.strip():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No se pudo completar el registro.")
+        registrar_intento(request, "registro", 10, 600)
     if not data.acepta_politica:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "Debes aceptar la política de privacidad y tratamiento de datos."
@@ -195,7 +203,7 @@ def crear(
         codigo = generar_codigo()
 
     visitante = Visitante(
-        **data.model_dump(exclude={"email", "codigo_verificacion", "feria_id", "acepta_politica"}), email=email, id=uid("vis-"), codigo=codigo
+        **data.model_dump(exclude={"email", "codigo_verificacion", "feria_id", "acepta_politica", "empresa_web"}), email=email, id=uid("vis-"), codigo=codigo
     )
     _registrar_aceptacion(visitante)
     db.add(visitante)
