@@ -30,6 +30,7 @@ const EmpresaEquipo = lazy(() => import('./pages/empresa/EmpresaEquipo'));
 const VisitanteTarjeta = lazy(() => import('./pages/visitante/VisitanteTarjeta'));
 const VisitanteEscanear = lazy(() => import('./pages/visitante/VisitanteEscanear'));
 const VisitanteCuenta = lazy(() => import('./pages/visitante/VisitanteCuenta'));
+const VisitanteFerias = lazy(() => import('./pages/visitante/VisitanteFerias'));
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { session } = useAuth();
@@ -85,6 +86,7 @@ export default function App() {
 
       <Route path="/visitante" element={<RequireRole role="visitante"><AppLayout role="visitante" /></RequireRole>}>
         <Route index element={<VisitanteTarjeta />} />
+        <Route path="ferias" element={<VisitanteFerias />} />
         <Route path="escanear" element={<VisitanteEscanear />} />
         <Route path="cuenta" element={<VisitanteCuenta />} />
       </Route>

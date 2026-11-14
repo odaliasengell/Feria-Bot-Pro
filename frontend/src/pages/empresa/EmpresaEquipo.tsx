@@ -10,6 +10,7 @@ import PasswordInput from '../../components/PasswordInput';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { errorEmail, errorNombre, errorPassword } from '../../lib/validacion';
 import { useValidacion } from '../../lib/useValidacion';
+import { useConfirmar } from '../../context/ConfirmarContext';
 
 /** «Mi equipo»: la cuenta principal de la empresa agrega y quita vendedores que escanean con su propia cuenta. */
 export default function EmpresaEquipo() {
@@ -35,8 +36,22 @@ function Equipo({ empresaId }: { empresaId: string }) {
   const [agregando, setAgregando] = useState(false);
   const toast = useToast();
 
+  const confirmar = useConfirmar();
   async function quitar(u: UsuarioEmpresa) {
-    if (!confirm(`¿Quitar a ${u.nombre} del equipo? Ya no podrá ingresar. Los leads que registró se conservan con su nombre.`)) return;
+    const ok = await confirmar({
+      titulo: 'Quitar vendedor',
+      mensaje: (
+        <>
+          <p>
+            ¿Quitar a <b>{u.nombre}</b> del equipo?
+          </p>
+          <p className="muted small">Ya no podrá ingresar. Los leads que registró se conservan con su nombre.</p>
+        </>
+      ),
+      confirmar: 'Quitar del equipo',
+      peligro: true,
+    });
+    if (!ok) return;
     try {
       await empresasApi.quitarUsuario(empresaId, u.id);
       toast.exito(`${u.nombre} ya no forma parte del equipo.`);

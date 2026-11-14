@@ -136,17 +136,19 @@ export function Field({
   full,
   error,
   opcional,
+  className = '',
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
   full?: boolean;
+  className?: string;
   error?: string | null;
   /** Agrega «(opcional)» a la etiqueta. */
   opcional?: boolean;
 }) {
   return (
-    <label className={`field ${full ? 'field-full' : ''} ${error ? 'has-error' : ''}`}>
+    <label className={`field ${full ? 'field-full' : ''} ${error ? 'has-error' : ''} ${className}`}>
       <span className="field-label">
         {label}
         {opcional && <span className="field-opcional"> (opcional)</span>}

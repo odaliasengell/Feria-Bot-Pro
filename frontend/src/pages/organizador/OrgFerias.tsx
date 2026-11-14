@@ -11,6 +11,7 @@ import PortadaFeria from '../../components/PortadaFeria';
 import { errorNombre } from '../../lib/validacion';
 import { useValidacion } from '../../lib/useValidacion';
 import { Alert, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
+import { useConfirmar } from '../../context/ConfirmarContext';
 
 function nuevaVacia(): NuevaFeria {
   return {
@@ -55,9 +56,25 @@ export default function OrgFerias() {
     }
   }
 
+  const confirmar = useConfirmar();
   async function eliminar(f: Feria) {
-    const msg = `¿Eliminar «${f.nombre}»? Se borrarán sus ${f.totalEmpresas} empresas, sus leads y las inscripciones de ${f.totalVisitantes} visitantes. Las cuentas de los visitantes se conservan.`;
-    if (!confirm(msg)) return;
+    const ok = await confirmar({
+      titulo: 'Eliminar feria',
+      mensaje: (
+        <>
+          <p>
+            ¿Eliminar <b>«{f.nombre}»</b>?
+          </p>
+          <p className="muted small">
+            Se borrarán sus {f.totalEmpresas} empresas, sus leads y las inscripciones de {f.totalVisitantes} visitantes. Las cuentas de los
+            visitantes se conservan. No se puede deshacer.
+          </p>
+        </>
+      ),
+      confirmar: 'Eliminar feria',
+      peligro: true,
+    });
+    if (!ok) return;
     try {
       await feriasApi.eliminar(f.id);
       await recargar();
@@ -459,13 +476,18 @@ function FormDuplicar({
 function EnlaceRegistro({ feria }: { feria: Feria }) {
   const url = enlaceRegistro(feria.id);
   const [copiado, setCopiado] = useState(false);
+  const toast = useToast();
 
   async function copiar() {
     try {
       await navigator.clipboard.writeText(url);
       setCopiado(true);
     } catch {
-      prompt('Copia el enlace:', url);
+      // Sin permiso para el portapapeles: se selecciona el enlace para copiarlo a mano.
+      const campo = document.getElementById(`enlace-${feria.id}`) as HTMLInputElement | null;
+      campo?.focus();
+      campo?.select();
+      toast.info('No se pudo copiar automáticamente: el enlace quedó seleccionado, cópialo con Ctrl+C.');
     }
   }
 
@@ -487,7 +509,7 @@ function EnlaceRegistro({ feria }: { feria: Feria }) {
         <p className="cartel-foot">Escanea y obtén tu tarjeta de visitante con QR</p>
       </article>
       <div className="row-gap no-print">
-        <input className="input grow" value={url} readOnly onFocus={(e) => e.target.select()} />
+        <input id={`enlace-${feria.id}`} className="input grow" value={url} readOnly onFocus={(e) => e.target.select()} aria-label="Enlace de registro" />
         <button className="btn btn-outline" onClick={copiar}>
           {copiado ? <Check size={16} /> : <Copy size={16} />} {copiado ? 'Copiado' : 'Copiar'}
         </button>

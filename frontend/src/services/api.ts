@@ -21,6 +21,8 @@ import type {
   NuevaEmpresa,
   NuevaFeria,
   NuevoVisitante,
+  PaginaLeads,
+  PaginaVisitantes,
   ResultadoImportacion,
   Session,
   UsuarioEmpresa,
@@ -246,6 +248,16 @@ export const visitantesApi = {
   /** Con `feriaId`, solo los inscritos en esa feria. */
   listar: (feriaId?: string) => pedir<Visitante[]>('GET', '/visitantes', undefined, { feriaId }),
 
+  /** Inscritos de una feria de a una página; la búsqueda y el filtro de asistencia los hace el servidor. */
+  pagina: (feriaId: string, opciones: { q?: string; asistio?: boolean; pagina: number; porPagina: number }) =>
+    pedir<PaginaVisitantes>('GET', '/visitantes/pagina', undefined, {
+      feriaId,
+      q: opciones.q?.trim(),
+      asistio: opciones.asistio === undefined ? undefined : String(opciones.asistio),
+      pagina: String(opciones.pagina),
+      porPagina: String(opciones.porPagina),
+    }),
+
   obtener: (id: string) => oNull(pedir<Visitante>('GET', `/visitantes/${encodeURIComponent(id)}`)),
 
   /** Busca por código de tarjeta o por correo. */
@@ -283,6 +295,18 @@ export const leadsApi = {
   listar: (filtro: { empresaId?: string; visitanteId?: string; feriaId?: string } = {}) =>
     pedir<LeadDetalle[]>('GET', '/leads', undefined, filtro),
 
+  /** Leads de a una página con búsqueda y filtros en el servidor (organizador: por feria; empresa: los suyos). */
+  pagina: (filtro: FiltroLeads & { pagina: number; porPagina: number }) =>
+    pedir<PaginaLeads>('GET', '/leads/pagina', undefined, {
+      feriaId: filtro.feriaId,
+      empresaId: filtro.empresaId,
+      q: filtro.q?.trim(),
+      calificacion: filtro.calificacion,
+      estado: filtro.estado,
+      pagina: String(filtro.pagina),
+      porPagina: String(filtro.porPagina),
+    }),
+
   obtener: (empresaId: string, visitanteId: string) =>
     oNull(pedir<Lead>('GET', `/leads/${encodeURIComponent(empresaId)}/${encodeURIComponent(visitanteId)}`)),
 
@@ -297,6 +321,26 @@ export const leadsApi = {
   guardar: (empresaId: string, visitanteId: string, calificacion: Calificacion, nota: string) =>
     pedir<LeadDetalle>('PUT', '/leads', { empresaId, visitanteId, calificacion, nota }),
 };
+
+export interface FiltroLeads {
+  feriaId?: string;
+  empresaId?: string;
+  q?: string;
+  calificacion?: Calificacion | '';
+  estado?: EstadoLead | '';
+}
+
+/** Junta todas las páginas (para exportar a CSV lo que coincide con la búsqueda). */
+export async function todasLasPaginas<T>(cargar: (pagina: number) => Promise<{ items: T[]; total: number }>): Promise<T[]> {
+  const primera = await cargar(1);
+  const items = [...primera.items];
+  for (let p = 2; items.length < primera.total; p++) {
+    const r = await cargar(p);
+    if (!r.items.length) break;
+    items.push(...r.items);
+  }
+  return items;
+}
 
 export const vistasApi = {
   /** El visitante abrió la ficha de una empresa escaneando el QR del stand. */

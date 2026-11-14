@@ -52,7 +52,7 @@ export default function ImportarEmpresas({ feria, onImportadas }: { feria: Feria
     <div className="stack">
       <ol className="import-pasos">
         <li>
-          Descarga la plantilla y completa una empresa por fila.{' '}
+          Descarga la plantilla y completa una empresa por fila (nombre, RUC y correo son obligatorios).{' '}
           <button type="button" className="btn btn-outline btn-sm" onClick={plantilla} disabled={bajando}>
             <Download size={14} /> {bajando ? 'Descargando…' : 'Descargar plantilla'}
           </button>

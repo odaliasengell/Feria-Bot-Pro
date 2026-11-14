@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Building2, CalendarDays, ContactRound, Eye, RotateCcw, Users } from 'lucide-react';
 import type { Feria } from '../../types';
-import { demoApi, empresasApi, feriasApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
+import { demoApi, feriasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
 import { useFeria } from '../../context/FeriaContext';
@@ -9,14 +9,34 @@ import { ConFeria } from '../../components/FeriaSelector';
 import { Avatar, Card, EmptyState, Loader, PageHeader, StatCard } from '../../components/ui';
 import DistribucionCalificaciones from '../../components/DistribucionCalificaciones';
 import GraficosFeria from '../../components/GraficosFeria';
+import { useConfirmar } from '../../context/ConfirmarContext';
+import { mensajeError, useToast } from '../../context/ToastContext';
 
 export default function OrgResumen() {
   const { ferias, cargando, recargar } = useFeria();
+  const confirmar = useConfirmar();
+  const toast = useToast();
 
   async function reiniciar() {
-    if (!confirm('¿Restaurar los datos de demostración? Se borrarán todas las ferias y sus datos.')) return;
-    await demoApi.reiniciar();
-    await recargar();
+    const ok = await confirmar({
+      titulo: 'Restaurar datos de demostración',
+      mensaje: (
+        <>
+          <p>Se borrarán <b>todas las ferias</b> con sus empresas, visitantes, leads y vistas, y se cargará la demo.</p>
+          <p className="muted small">No se puede deshacer.</p>
+        </>
+      ),
+      confirmar: 'Borrar y restaurar',
+      peligro: true,
+    });
+    if (!ok) return;
+    try {
+      await demoApi.reiniciar();
+      await recargar();
+      toast.exito('Datos de demostración restaurados.');
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudieron restaurar los datos.'));
+    }
   }
 
   if (!cargando && ferias.length === 0)
@@ -35,26 +55,14 @@ export default function OrgResumen() {
 }
 
 function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () => Promise<void> }) {
-  const { data, cargando, recargar } = useAsync(
-    () =>
-      Promise.all([
-        empresasApi.listar(feria.id),
-        visitantesApi.listar(feria.id),
-        leadsApi.listar({ feriaId: feria.id }),
-        vistasApi.listar({ feriaId: feria.id }),
-        feriasApi.estadisticas(feria.id),
-      ]),
-    [feria.id],
-  );
+  // Todo sale de las estadísticas (cifras calculadas en la base), sin descargar las listas completas.
+  const { data: stats, cargando, recargar } = useAsync(() => feriasApi.estadisticas(feria.id), [feria.id]);
 
-  if (cargando && !data) return <Loader />;
-  if (!data) return null;
-  const [empresas, visitantes, leads, vistas, stats] = data;
+  if (cargando && !stats) return <Loader />;
+  if (!stats) return null;
 
-  const ranking = empresas
-    .map((e) => ({ e, n: leads.filter((l) => l.empresaId === e.id).length, v: vistas.filter((x) => x.empresaId === e.id).length }))
-    .sort((a, b) => b.n - a.n);
-  const max = Math.max(1, ...ranking.map((r) => r.n));
+  const ranking = stats.rankingEmpresas;
+  const max = Math.max(1, ...ranking.map((r) => r.leads));
 
   async function reiniciar() {
     await onReiniciar();
@@ -74,10 +82,10 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
       />
 
       <div className="stats-grid">
-        <StatCard label="Empresas" value={empresas.length} icon={<Building2 />} tone="blue" />
-        <StatCard label="Visitantes inscritos" value={visitantes.length} icon={<Users />} tone="teal" hint={feria.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'} />
-        <StatCard label="Leads generados" value={leads.length} icon={<ContactRound />} tone="orange" />
-        <StatCard label="Fichas consultadas" value={vistas.length} icon={<Eye />} tone="navy" />
+        <StatCard label="Empresas" value={stats.totalEmpresas} icon={<Building2 />} tone="blue" />
+        <StatCard label="Visitantes inscritos" value={stats.totalInscritos} icon={<Users />} tone="teal" hint={feria.abierta ? 'Inscripciones abiertas' : 'Inscripciones cerradas'} />
+        <StatCard label="Leads generados" value={stats.totalLeads} icon={<ContactRound />} tone="orange" />
+        <StatCard label="Fichas consultadas" value={stats.totalVistas} icon={<Eye />} tone="navy" />
       </div>
 
       <GraficosFeria stats={stats} />
@@ -92,12 +100,12 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
           }
         >
           <ul className="rank">
-            {ranking.map(({ e, n, v }) => (
-              <li key={e.id}>
-                <Avatar nombre={e.nombre} src={e.logo} size={34} square />
+            {ranking.map(({ empresaId, nombre, logo, leads: n, vistas: v }) => (
+              <li key={empresaId}>
+                <Avatar nombre={nombre} src={logo ?? undefined} size={34} square />
                 <div className="rank-body">
                   <div className="rank-top">
-                    <strong>{e.nombre}</strong>
+                    <strong>{nombre}</strong>
                     <span className="muted small">{v} {v === 1 ? 'ficha vista' : 'fichas vistas'}</span>
                     <b>{n}</b>
                   </div>
@@ -112,7 +120,7 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
 
         <div className="stack">
           <Card title="Nivel de interés">
-            <DistribucionCalificaciones leads={leads} />
+            <DistribucionCalificaciones conteo={stats.leadsPorCalificacion} />
           </Card>
           <Card
             title="Últimos visitantes"
@@ -123,7 +131,7 @@ function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () =>
             }
           >
             <ul className="mini-list">
-              {visitantes.slice(0, 5).map((v) => (
+              {stats.ultimosVisitantes.map((v) => (
                 <li key={v.id}>
                   <Avatar nombre={v.nombre} size={34} />
                   <div>

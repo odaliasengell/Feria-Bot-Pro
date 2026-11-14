@@ -43,6 +43,7 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
   ],
   visitante: [
     { to: '/visitante', label: 'Mi tarjeta', icon: IdCard, end: true },
+    { to: '/visitante/ferias', label: 'Ferias', icon: CalendarDays },
     { to: '/visitante/escanear', label: 'Escanear stand', icon: ScanLine },
     { to: '/visitante/cuenta', label: 'Mi cuenta', icon: UserCog },
   ],

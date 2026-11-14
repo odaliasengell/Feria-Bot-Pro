@@ -87,9 +87,11 @@ export default function EmpresaFicha() {
     setEstado('guardando');
     setError(null);
     try {
-      const { id, creadoEn: _c, feriaId: _f, ...datos } = f;
+      // El RUC lo cambia solo el organizador.
+      const { id, creadoEn: _c, feriaId: _f, ruc: _r, ...datos } = f;
       void _c;
       void _f;
+      void _r;
       await empresasApi.actualizar(id, datos);
       setEstado('ok');
       toast.exito('Ficha guardada. Los visitantes ya ven los cambios.');
@@ -192,6 +194,9 @@ export default function EmpresaFicha() {
               </Field>
               <Field label="Sitio web" opcional error={v.error('sitioWeb')}>
                 <input className="input" type="url" inputMode="url" value={f.sitioWeb ?? ''} onChange={set('sitioWeb')} {...props('sitioWeb')} maxLength={255} placeholder="https://" />
+              </Field>
+              <Field label="RUC" hint="Si hay un error en tu RUC, pide al organizador que lo corrija.">
+                <input className="input input-ruc" value={f.ruc ?? 'Sin registrar'} readOnly disabled />
               </Field>
             </div>
           </Card>

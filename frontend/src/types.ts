@@ -66,6 +66,8 @@ export interface Empresa {
   id: string;
   feriaId: string;
   nombre: string;
+  /** RUC de Ecuador (13 dígitos). null en empresas creadas antes de pedirlo. */
+  ruc?: string | null;
   rubro: string;
   descripcion: string;
   servicios: string[];
@@ -109,9 +111,39 @@ export interface Lead {
   actualizadoEn: string;
 }
 
+/** Empresa dentro de un lead o una vista: sin fotos, descripción ni servicios. */
+export type EmpresaBreve = Pick<Empresa, 'id' | 'feriaId' | 'nombre' | 'rubro' | 'stand' | 'email' | 'telefono' | 'logo'>;
+
 export interface LeadDetalle extends Lead {
   visitante?: Visitante;
-  empresa?: Empresa;
+  empresa?: EmpresaBreve;
+}
+
+/** Respuesta paginada del servidor. */
+export interface Pagina<T> {
+  items: T[];
+  total: number;
+  pagina: number;
+  porPagina: number;
+}
+
+/** GET /visitantes/pagina: inscritos de una feria con su entrada y cuántas empresas los registraron. */
+export interface VisitanteFila extends Visitante {
+  asistioEn?: string | null;
+  leads: number;
+}
+
+export interface PaginaVisitantes extends Pagina<VisitanteFila> {
+  /** De toda la feria, sin la búsqueda. */
+  totalFeria: number;
+  asistieron: number;
+}
+
+/** GET /leads/pagina. Las cifras y `empresas` son del alcance completo, sin los filtros. */
+export interface PaginaLeads extends Pagina<LeadDetalle> {
+  totalSinFiltros: number;
+  porCalificacion: Partial<Record<Calificacion, number>>;
+  empresas: { id: string; nombre: string }[];
 }
 
 /** Registro de que un visitante abrió la ficha digital de una empresa (QR del stand). */
@@ -123,7 +155,7 @@ export interface VistaFicha {
 }
 
 export interface VistaDetalle extends VistaFicha {
-  empresa?: Empresa;
+  empresa?: EmpresaBreve;
   visitante?: Visitante;
 }
 
@@ -185,7 +217,13 @@ export interface EstadisticasFeria {
   inscritosPorDia: { fecha: string; total: number }[];
   /** Leads por hora del día (0–23), de la primera a la última hora con escaneos. */
   escaneosPorHora: { hora: number; total: number }[];
-  rankingEmpresas: { empresaId: string; nombre: string; leads: number; vistas: number }[];
+  rankingEmpresas: { empresaId: string; nombre: string; logo?: string | null; leads: number; vistas: number }[];
   /** Ordenadas de más a menos visitantes; «Sin ciudad» al final. */
   ciudades: { ciudad: string; total: number }[];
+  totalEmpresas: number;
+  totalLeads: number;
+  totalVistas: number;
+  leadsPorCalificacion: Partial<Record<Calificacion, number>>;
+  /** Los 5 inscritos más recientes. */
+  ultimosVisitantes: Visitante[];
 }

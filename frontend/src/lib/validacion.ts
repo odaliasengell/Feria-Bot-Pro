@@ -112,3 +112,35 @@ export function fuerzaPassword(p: string): FuerzaPassword {
   const n = Math.max(0, Math.min(4, nivel)) as FuerzaPassword['nivel'];
   return { nivel: n, etiqueta: ETIQUETAS[n], requisitos, consejo };
 }
+
+/** Dígito verificador de la cédula ecuatoriana (módulo 10) a partir de sus 9 primeros dígitos. */
+function digitoCedula(nueve: string): number {
+  let total = 0;
+  for (let i = 0; i < 9; i++) {
+    const n = Number(nueve[i]) * (i % 2 === 0 ? 2 : 1);
+    total += n > 9 ? n - 9 : n;
+  }
+  return (10 - (total % 10)) % 10;
+}
+
+/** Deja solo los dígitos del RUC (quita espacios y guiones). */
+export function limpiarRuc(v: string): string {
+  return v.replace(/\D/g, '');
+}
+
+/**
+ * RUC de Ecuador: 13 dígitos, provincia 01-24 o 30, tercer dígito 0-6 o 9 y establecimiento distinto de 000.
+ * En personas naturales (tercer dígito 0-5) también se revisa la cédula. Igual que el backend.
+ */
+export function errorRuc(v: string, requerido = true): string | null {
+  const t = limpiarRuc(v);
+  if (!t) return requerido ? 'El RUC es obligatorio.' : null;
+  if (t.length !== 13) return `El RUC debe tener 13 dígitos (tiene ${t.length}).`;
+  const provincia = Number(t.slice(0, 2));
+  const tercero = Number(t[2]);
+  if (!((provincia >= 1 && provincia <= 24) || provincia === 30)) return 'Los dos primeros dígitos (provincia) no son válidos.';
+  if (tercero === 7 || tercero === 8) return 'El tercer dígito del RUC no es válido.';
+  if (t.slice(10) === '000') return 'Debe terminar en el número de establecimiento, por ejemplo 001.';
+  if (tercero < 6 && digitoCedula(t.slice(0, 9)) !== Number(t[9])) return 'El RUC no es válido: revisa los 10 primeros dígitos (cédula).';
+  return null;
+}

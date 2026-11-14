@@ -1,9 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Download, IdCard, Plus, Search, Trash2, Users } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Check, Download, IdCard, Mail, Phone, Plus, Search, Trash2, Users } from 'lucide-react';
 import type { Feria, Visitante } from '../../types';
-import { inscripcionesApi, leadsApi, visitantesApi } from '../../services/api';
+import { inscripcionesApi, todasLasPaginas, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
-import { descargarCSV, fecha, fechaHora, normalizar } from '../../lib/utils';
+import { descargarCSV, fecha, fechaHora } from '../../lib/utils';
+import { useDebounce, usePaginado } from '../../lib/usePaginado';
+import Paginacion from '../../components/Paginacion';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
 import { TarjetaVisitante } from '../../components/Credenciales';
 import { ConFeria } from '../../components/FeriaSelector';
@@ -11,39 +13,49 @@ import FormVisitante, { erroresVisitante, visitanteVacio } from './FormVisitante
 import { useValidacion } from '../../lib/useValidacion';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import AceptoPolitica from '../../components/AceptoPolitica';
+import { useConfirmar } from '../../context/ConfirmarContext';
 
 export default function OrgVisitantes() {
   return <ConFeria>{(feria) => <VisitantesFeria feria={feria} />}</ConFeria>;
 }
 
 function VisitantesFeria({ feria }: { feria: Feria }) {
-  const { data, cargando, recargar } = useAsync(
-    () =>
-      Promise.all([
-        visitantesApi.listar(feria.id),
-        leadsApi.listar({ feriaId: feria.id }),
-        inscripcionesApi.listar({ feriaId: feria.id }),
-      ]),
-    [feria.id],
-  );
   const [q, setQ] = useState('');
+  const [asistio, setAsistio] = useState<'' | 'si' | 'no'>('');
+  const busqueda = useDebounce(q.trim());
+  const { pagina, setPagina, porPagina, setPorPagina } = usePaginado([feria.id, busqueda, asistio]);
+  const filtro = { q: busqueda, asistio: asistio === '' ? undefined : asistio === 'si' };
+  const { data, cargando, error, recargar } = useAsync(
+    () => visitantesApi.pagina(feria.id, { ...filtro, pagina, porPagina }),
+    [feria.id, busqueda, asistio, pagina, porPagina],
+  );
   const [nuevo, setNuevo] = useState(false);
   const [tarjeta, setTarjeta] = useState<Visitante | null>(null);
+  const [exportando, setExportando] = useState(false);
   const toast = useToast();
 
-  const [visitantes, leads, inscripciones] = data ?? [[], [], []];
-  /** Hora de entrada a la feria por visitante (control de acceso). */
-  const asistencia = useMemo(
-    () => new Map(inscripciones.filter((i) => i.asistioEn).map((i) => [i.visitanteId, i.asistioEn!])),
-    [inscripciones],
-  );
-  const filtrados = useMemo(() => {
-    const nq = normalizar(q);
-    return visitantes.filter((v) => !nq || normalizar([v.nombre, v.email, v.codigo, v.empresa, v.ciudad, v.telefono].join(' ')).includes(nq));
-  }, [visitantes, q]);
+  const filas = data?.items ?? [];
+  // Si se quitó al último de la última página, volver a la anterior.
+  useEffect(() => {
+    if (data && !cargando && data.items.length === 0 && data.total > 0 && pagina > 1) setPagina(Math.ceil(data.total / porPagina));
+  }, [data, cargando, pagina, porPagina, setPagina]);
 
+  const confirmar = useConfirmar();
   async function eliminar(v: Visitante) {
-    if (!confirm(`¿Quitar a ${v.nombre} de «${feria.nombre}»? También se borrarán sus leads en esta feria. Su cuenta se conserva.`)) return;
+    const ok = await confirmar({
+      titulo: 'Quitar de la feria',
+      mensaje: (
+        <>
+          <p>
+            ¿Quitar a <b>{v.nombre}</b> de «{feria.nombre}»?
+          </p>
+          <p className="muted small">También se borrarán sus leads en esta feria. Su cuenta y su código QR se conservan.</p>
+        </>
+      ),
+      confirmar: 'Quitar de la feria',
+      peligro: true,
+    });
+    if (!ok) return;
     try {
       await inscripcionesApi.quitar(feria.id, v.id);
       toast.exito(`${v.nombre} ya no está inscrito en «${feria.nombre}».`);
@@ -53,14 +65,30 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
     }
   }
 
-  function exportar() {
-    descargarCSV(`visitantes-${feria.nombre}.csv`, [
-      ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro', 'Asistió'],
-      ...filtrados.map((v) => {
-        const entrada = asistencia.get(v.id);
-        return [v.codigo, v.nombre, v.telefono, v.email, v.empresa, v.ciudad, fecha(v.creadoEn), entrada ? fechaHora(entrada) : 'No'];
-      }),
-    ]);
+  /** Exporta todo lo que coincide con la búsqueda y el filtro (todas las páginas). */
+  async function exportar() {
+    setExportando(true);
+    try {
+      const todos = await todasLasPaginas((p) => visitantesApi.pagina(feria.id, { ...filtro, pagina: p, porPagina: 100 }));
+      descargarCSV(`visitantes-${feria.nombre}.csv`, [
+        ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro', 'Asistió', 'Empresas que lo registraron'],
+        ...todos.map((v) => [
+          v.codigo,
+          v.nombre,
+          v.telefono,
+          v.email,
+          v.empresa,
+          v.ciudad,
+          fecha(v.creadoEn),
+          v.asistioEn ? fechaHora(v.asistioEn) : 'No',
+          String(v.leads),
+        ]),
+      ]);
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudo exportar.'));
+    } finally {
+      setExportando(false);
+    }
   }
 
   return (
@@ -77,19 +105,33 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
 
       {cargando && !data ? (
         <Loader />
+      ) : error && !data ? (
+        <Alert>
+          {error}{' '}
+          <button type="button" className="link-btn" onClick={recargar}>
+            Reintentar
+          </button>
+        </Alert>
       ) : (
-        <div className="table-card">
+        <div className={`table-card ${cargando ? 'is-cargando' : ''}`}>
           <div className="toolbar">
             <div className="search">
               <Search size={17} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, código, correo, ciudad…" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, código, correo, ciudad…" aria-label="Buscar visitantes" />
             </div>
-            <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!filtrados.length}>
-              <Download size={15} /> CSV
+            <div className="seg" role="group" aria-label="Filtrar por asistencia">
+              <button className={asistio === '' ? 'active' : ''} onClick={() => setAsistio('')}>Todos</button>
+              <button className={asistio === 'si' ? 'active tone-teal' : ''} onClick={() => setAsistio('si')}>Asistieron</button>
+              <button className={asistio === 'no' ? 'active' : ''} onClick={() => setAsistio('no')}>Sin entrada</button>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || exportando}>
+              <Download size={15} /> {exportando ? 'Exportando…' : 'CSV'}
             </button>
           </div>
-          {filtrados.length === 0 ? (
-            <EmptyState icon={<Users />} title={visitantes.length ? 'Sin resultados' : 'Aún no hay visitantes inscritos'} />
+          {filas.length === 0 ? (
+            <EmptyState icon={<Users />} title={data?.totalFeria ? 'Sin resultados' : 'Aún no hay visitantes inscritos'}>
+              {data?.totalFeria ? 'Prueba con otra búsqueda o filtro.' : undefined}
+            </EmptyState>
           ) : (
             <div className="table-scroll">
               <table className="table">
@@ -97,46 +139,55 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
                   <tr>
                     <th>Visitante</th>
                     <th>Código</th>
-                    <th>Teléfono</th>
-                    <th>Correo</th>
-                    <th>Ciudad</th>
+                    <th>Contacto</th>
                     <th>Asistió</th>
-                    <th className="num">Stands</th>
+                    <th className="num" title="Empresas que lo registraron">Stands</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrados.map((v) => (
+                  {filas.map((v) => (
                     <tr key={v.id}>
                       <td>
                         <div className="cell-person">
                           <Avatar nombre={v.nombre} size={34} />
                           <div>
                             <strong>{v.nombre}</strong>
-                            <span>{v.empresa || '—'}</span>
+                            <span>{[v.empresa, v.ciudad].filter(Boolean).join(' · ') || '—'}</span>
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td className="nowrap">
                         <code className="code">{v.codigo}</code>
                       </td>
-                      <td className="nowrap">{v.telefono}</td>
-                      <td>{v.email}</td>
-                      <td>{v.ciudad}</td>
+                      <td>
+                        <div className="cell-contact">
+                          {v.email && (
+                            <a href={`mailto:${v.email}`}>
+                              <Mail size={14} /> {v.email}
+                            </a>
+                          )}
+                          {v.telefono && (
+                            <a href={`tel:${v.telefono}`}>
+                              <Phone size={14} /> {v.telefono}
+                            </a>
+                          )}
+                        </div>
+                      </td>
                       <td className="nowrap">
-                        {asistencia.has(v.id) ? (
-                          <span className="badge tone-teal" title={`Entró: ${fechaHora(asistencia.get(v.id)!)}`}>
-                            Sí · {fechaHora(asistencia.get(v.id)!)}
+                        {v.asistioEn ? (
+                          <span className="badge tone-teal" title={`Entró: ${fechaHora(v.asistioEn)}`}>
+                            <Check size={13} /> {fechaHora(v.asistioEn)}
                           </span>
                         ) : (
                           <span className="muted">—</span>
                         )}
                       </td>
-                      <td className="num">{leads.filter((l) => l.visitanteId === v.id).length}</td>
+                      <td className="num">{v.leads}</td>
                       <td>
                         <div className="row-actions">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setTarjeta(v)}>
-                            <IdCard size={15} /> Tarjeta
+                          <button className="btn btn-ghost btn-sm" onClick={() => setTarjeta(v)} title="Ver tarjeta con QR">
+                            <IdCard size={15} /> <span className="solo-ancho">Tarjeta</span>
                           </button>
                           <button className="icon-btn danger" onClick={() => eliminar(v)} aria-label="Quitar de la feria" title="Quitar de la feria">
                             <Trash2 size={16} />
@@ -150,7 +201,17 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
             </div>
           )}
           <div className="table-foot muted small">
-            {filtrados.length} de {visitantes.length} visitantes inscritos · {asistencia.size} asistieron
+            <span>
+              {data?.totalFeria ?? 0} visitantes inscritos · {data?.asistieron ?? 0} asistieron
+            </span>
+            <Paginacion
+              pagina={pagina}
+              porPagina={porPagina}
+              total={data?.total ?? 0}
+              onPagina={setPagina}
+              onPorPagina={setPorPagina}
+              etiqueta={busqueda || asistio ? 'resultados' : undefined}
+            />
           </div>
         </div>
       )}

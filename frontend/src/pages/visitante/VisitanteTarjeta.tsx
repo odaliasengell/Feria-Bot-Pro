@@ -16,46 +16,17 @@ import {
   Store,
   WifiOff,
 } from 'lucide-react';
-import type { EstadoFeria, Feria } from '../../types';
+import type { Feria } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { feriasApi, inscripcionesApi, leadsApi, visitantesApi, vistasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { useEnLinea } from '../../lib/useEnLinea';
-import { haceCuanto, hoyISO, rangoFechas, type Tone } from '../../lib/utils';
+import { haceCuanto, rangoFechas } from '../../lib/utils';
 import { Alert, Avatar, Card, EmptyState, Loader, Modal } from '../../components/ui';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { TarjetaVisitante } from '../../components/Credenciales';
 import PortadaFeria from '../../components/PortadaFeria';
-
-const ESTADO: Record<EstadoFeria, { label: string; tone: Tone }> = {
-  en_curso: { label: 'En curso', tone: 'teal' },
-  proxima: { label: 'Próxima', tone: 'blue' },
-  finalizada: { label: 'Finalizada', tone: 'gray' },
-};
-const ORDEN: Record<EstadoFeria, number> = { en_curso: 0, proxima: 1, finalizada: 2 };
-
-/** En curso primero, luego las próximas (la más cercana primero) y al final las finalizadas (la más reciente primero). */
-function ordenarFerias(a: Feria, b: Feria): number {
-  if (a.estado !== b.estado) return ORDEN[a.estado] - ORDEN[b.estado];
-  return a.estado === 'proxima' ? a.fechaInicio.localeCompare(b.fechaInicio) : b.fechaInicio.localeCompare(a.fechaInicio);
-}
-
-/** «Hoy», «Mañana», «En 5 días», «Hasta el 30 nov», «Terminó el 9 nov». */
-function cuando(f: Feria): string {
-  const dia = (iso: string) => {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(y!, m! - 1, d!);
-  };
-  const corto = (iso: string) => dia(iso).toLocaleDateString('es', { day: 'numeric', month: 'short' });
-  if (f.estado === 'finalizada') return `Terminó el ${corto(f.fechaFin)}`;
-  if (f.estado === 'en_curso') return f.fechaFin === hoyISO() ? 'Último día' : `Hasta el ${corto(f.fechaFin)}`;
-  const dias = Math.round((dia(f.fechaInicio).getTime() - dia(hoyISO()).getTime()) / 86_400_000);
-  return dias <= 1 ? 'Empieza mañana' : `Empieza en ${dias} días`;
-}
-
-function mapsUrl(lugar: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lugar)}`;
-}
+import { ESTADO_FERIA as ESTADO, cuandoFeria as cuando, mapsUrl, ordenarFerias } from '../../lib/ferias';
 
 export default function VisitanteTarjeta() {
   const { session } = useAuth();
@@ -94,14 +65,19 @@ export default function VisitanteTarjeta() {
       </Alert>
     );
 
-  const misFerias = inscripciones
+  const todas = inscripciones
     .map((i) => i.feria)
     .filter((f): f is Feria => !!f)
     .sort(ordenarFerias);
-  const inscritoEn = new Set(misFerias.map((f) => f.id));
+  // Mi tarjeta es para la feria actual: las que ya terminaron están en «Ferias» (historial).
+  const misFerias = todas.filter((f) => f.estado !== 'finalizada');
+  const pasadas = todas.length - misFerias.length;
+  const inscritoEn = new Set(todas.map((f) => f.id));
   const actual = misFerias.find((f) => f.id === pedida) ?? misFerias[0] ?? null;
   const otras = abiertas.filter((f) => !inscritoEn.has(f.id));
   const ofrecer = feriaPedida && !inscritoEn.has(feriaPedida.id) ? feriaPedida : null;
+  /** Ferias abiertas en las que aún no está (sin contar la que se le ofrece arriba). */
+  const nuevasFerias = otras.filter((f) => f.id !== ofrecer?.id).length;
 
   const leadsFeria = leads.filter((l) => l.empresa?.feriaId === actual?.id);
   const vistasFeria = vistas.filter((v) => v.empresa?.feriaId === actual?.id);
@@ -151,7 +127,9 @@ export default function VisitanteTarjeta() {
         <h1>Hola, {visitante.nombre.split(' ')[0]} 👋</h1>
         <p className="muted">
           {misFerias.length === 0
-            ? 'Inscríbete a una feria para recibir tu tarjeta con QR.'
+            ? pasadas > 0
+              ? 'Tus ferias ya terminaron. Revisa tu historial o inscríbete a una nueva.'
+              : 'Inscríbete a una feria para recibir tu tarjeta con QR.'
             : misFerias.length === 1
               ? 'Estás inscrito en 1 feria. Presenta tu QR en los stands.'
               : `Estás inscrito en ${misFerias.length} ferias. Elige una para ver su tarjeta y tu historial.`}
@@ -236,8 +214,13 @@ export default function VisitanteTarjeta() {
         <>
           {encabezado}
           <Card>
-            <EmptyState icon={<CalendarDays />} title="Aún no estás inscrito en ninguna feria">
-              Elige una de las ferias abiertas para obtener tu tarjeta.
+            <EmptyState
+              icon={<CalendarDays />}
+              title={pasadas > 0 ? 'No tienes ferias en curso ni próximas' : 'Aún no estás inscrito en ninguna feria'}
+            >
+              <Link to="/visitante/ferias" className="btn btn-primary btn-sm">
+                {pasadas > 0 ? 'Ver mi historial y otras ferias' : 'Ver ferias para inscribirme'} <ArrowRight size={15} />
+              </Link>
             </EmptyState>
           </Card>
         </>
@@ -353,38 +336,22 @@ export default function VisitanteTarjeta() {
         </div>
       )}
 
-      {otras.filter((f) => f.id !== ofrecer?.id).length > 0 && (
-        <Card title="Inscríbete a otra feria" className="mt">
-          <p className="muted small">Usas la misma cuenta y el mismo código QR en todas tus ferias.</p>
-          <ul className="company-list">
-            {otras
-              .filter((f) => f.id !== ofrecer?.id)
-              .map((f) => (
-                <li key={f.id}>
-                  <div className="grow">
-                    <strong>{f.nombre}</strong>
-                    <span className="feria-card-meta muted small">
-                      <span>
-                        <CalendarDays size={13} /> {rangoFechas(f.fechaInicio, f.fechaFin)}
-                      </span>
-                      {f.lugar && (
-                        <span>
-                          <MapPin size={13} /> {f.lugar}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  {f.llena ? (
-                    <span className="badge tone-orange">Feria llena</span>
-                  ) : (
-                    <button className="btn btn-outline btn-sm" onClick={() => inscribirme(f)} disabled={inscribiendo !== null}>
-                      <CalendarPlus size={15} /> {inscribiendo === f.id ? 'Inscribiendo…' : 'Inscribirme'}
-                    </button>
-                  )}
-                </li>
-              ))}
-          </ul>
-        </Card>
+      {(nuevasFerias > 0 || pasadas > 0) && actual && (
+        <Link to="/visitante/ferias" className="vf-aviso">
+          <CalendarPlus size={18} />
+          <span>
+            {[
+              nuevasFerias > 0 && `Hay ${nuevasFerias} ${nuevasFerias === 1 ? 'feria abierta' : 'ferias abiertas'} para inscribirte`,
+              pasadas > 0 && `${nuevasFerias > 0 ? 'y' : 'Revisa'} el historial de tus ${pasadas === 1 ? 'feria anterior' : `${pasadas} ferias anteriores`}`,
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            .
+          </span>
+          <b>
+            Ver ferias <ArrowRight size={15} />
+          </b>
+        </Link>
       )}
 
       <Modal open={cancelando !== null} onClose={() => !quitando && setCancelando(null)} title="¿Cancelar tu inscripción?">
