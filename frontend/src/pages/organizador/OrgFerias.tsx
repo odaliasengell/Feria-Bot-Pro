@@ -242,7 +242,7 @@ export default function OrgFerias() {
   );
 }
 
-function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d: NuevaFeria) => Promise<void> }) {
+export function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d: NuevaFeria) => Promise<void> }) {
   const [f, setF] = useState<NuevaFeria>({
     nombre: inicial.nombre,
     descripcion: inicial.descripcion,

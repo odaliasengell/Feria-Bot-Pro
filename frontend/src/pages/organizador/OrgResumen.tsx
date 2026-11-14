@@ -1,43 +1,17 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Building2, CalendarDays, ContactRound, Eye, RotateCcw, Users } from 'lucide-react';
+import { ArrowRight, Building2, CalendarDays, ContactRound, Eye, Users } from 'lucide-react';
 import type { Feria } from '../../types';
-import { demoApi, feriasApi } from '../../services/api';
+import { feriasApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
 import { useFeria } from '../../context/FeriaContext';
 import { ConFeria } from '../../components/FeriaSelector';
-import { Avatar, Card, EmptyState, Loader, PageHeader, StatCard } from '../../components/ui';
+import { Avatar, Card, EmptyState, ErrorCarga, Loader, PageHeader, StatCard } from '../../components/ui';
 import DistribucionCalificaciones from '../../components/DistribucionCalificaciones';
 import GraficosFeria from '../../components/GraficosFeria';
-import { useConfirmar } from '../../context/ConfirmarContext';
-import { mensajeError, useToast } from '../../context/ToastContext';
 
 export default function OrgResumen() {
-  const { ferias, cargando, recargar } = useFeria();
-  const confirmar = useConfirmar();
-  const toast = useToast();
-
-  async function reiniciar() {
-    const ok = await confirmar({
-      titulo: 'Restaurar datos de demostración',
-      mensaje: (
-        <>
-          <p>Se borrarán <b>todas las ferias</b> con sus empresas, visitantes, leads y vistas, y se cargará la demo.</p>
-          <p className="muted small">No se puede deshacer.</p>
-        </>
-      ),
-      confirmar: 'Borrar y restaurar',
-      peligro: true,
-    });
-    if (!ok) return;
-    try {
-      await demoApi.reiniciar();
-      await recargar();
-      toast.exito('Datos de demostración restaurados.');
-    } catch (err) {
-      toast.error(mensajeError(err, 'No se pudieron restaurar los datos.'));
-    }
-  }
+  const { ferias, cargando } = useFeria();
 
   if (!cargando && ferias.length === 0)
     return (
@@ -45,40 +19,27 @@ export default function OrgResumen() {
         Crea tu primera feria para cargar empresas y abrir el registro de visitantes.
         <div className="row-gap center-row">
           <Link to="/organizador/ferias" className="btn btn-primary">Crear feria</Link>
-          <button className="btn btn-ghost" onClick={reiniciar}>
-            <RotateCcw size={15} /> Cargar datos demo
-          </button>
         </div>
       </EmptyState>
     );
-  return <ConFeria>{(feria) => <ResumenFeria feria={feria} onReiniciar={reiniciar} />}</ConFeria>;
+  return <ConFeria>{(feria) => <ResumenFeria feria={feria} />}</ConFeria>;
 }
 
-function ResumenFeria({ feria, onReiniciar }: { feria: Feria; onReiniciar: () => Promise<void> }) {
+function ResumenFeria({ feria }: { feria: Feria }) {
   // Todo sale de las estadísticas (cifras calculadas en la base), sin descargar las listas completas.
-  const { data: stats, cargando, recargar } = useAsync(() => feriasApi.estadisticas(feria.id), [feria.id]);
+  const { data: stats, cargando, error, recargar } = useAsync(() => feriasApi.estadisticas(feria.id), [feria.id]);
 
   if (cargando && !stats) return <Loader />;
-  if (!stats) return null;
+  if (!stats) return <ErrorCarga error={error ?? 'Intenta de nuevo.'} onReintentar={recargar} titulo="No pudimos cargar el resumen" />;
 
   const ranking = stats.rankingEmpresas;
   const max = Math.max(1, ...ranking.map((r) => r.leads));
-
-  async function reiniciar() {
-    await onReiniciar();
-    recargar();
-  }
 
   return (
     <>
       <PageHeader
         title={feria.nombre}
         subtitle={[rangoFechas(feria.fechaInicio, feria.fechaFin), feria.lugar].filter(Boolean).join(' · ')}
-        actions={
-          <button className="btn btn-ghost btn-sm" onClick={reiniciar}>
-            <RotateCcw size={15} /> Datos demo
-          </button>
-        }
       />
 
       <div className="stats-grid">

@@ -3,6 +3,7 @@ import { Download, FileSpreadsheet, Mail, Phone, Search, Inbox } from 'lucide-re
 import type { Calificacion, EstadoLead, LeadDetalle, PaginaLeads } from '../types';
 import { leadsApi, todasLasPaginas } from '../services/api';
 import { useAsync } from '../lib/useAsync';
+import { useToast } from '../context/ToastContext';
 import { useDebounce, usePaginado } from '../lib/usePaginado';
 import { CALIFICACIONES, CALIFICACION_ORDEN, ESTADOS_LEAD, ESTADO_LEAD_ORDEN, descargarCSV, fechaHora } from '../lib/utils';
 import { Alert, Avatar, CalificacionBadge, EmptyState, Loader } from './ui';
@@ -39,6 +40,7 @@ export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect,
   const [guardando, setGuardando] = useState<string | null>(null);
   const [descargando, setDescargando] = useState<'' | 'csv' | 'excel'>('');
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (data && !cargando && data.items.length === 0 && data.total > 0 && pagina > 1) setPagina(Math.ceil(data.total / porPagina));
@@ -53,6 +55,7 @@ export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect,
     setError(null);
     try {
       await leadsApi.cambiarEstado(l.id, nuevo);
+      toast.exito(`${l.visitante?.nombre ?? 'Contacto'}: ${ESTADOS_LEAD[nuevo].label.toLowerCase()}.`);
     } catch (err) {
       setCambios((c) => ({ ...c, [l.id]: anterior }));
       setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado');

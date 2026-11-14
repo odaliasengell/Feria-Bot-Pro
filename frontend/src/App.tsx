@@ -31,6 +31,16 @@ const VisitanteTarjeta = lazy(() => import('./pages/visitante/VisitanteTarjeta')
 const VisitanteEscanear = lazy(() => import('./pages/visitante/VisitanteEscanear'));
 const VisitanteCuenta = lazy(() => import('./pages/visitante/VisitanteCuenta'));
 const VisitanteFerias = lazy(() => import('./pages/visitante/VisitanteFerias'));
+const AdminResumen = lazy(() => import('./pages/admin/AdminResumen'));
+const AdminOrganizadores = lazy(() => import('./pages/admin/AdminOrganizadores'));
+const AdminUsuarios = lazy(() => import('./pages/admin/AdminUsuarios'));
+const AdminPlanes = lazy(() => import('./pages/admin/AdminPlanes'));
+const AdminSolicitudes = lazy(() => import('./pages/admin/AdminSolicitudes'));
+const AdminFerias = lazy(() => import('./pages/admin/AdminFerias'));
+const AdminVisitantes = lazy(() => import('./pages/admin/AdminVisitantes'));
+const AdminRegistros = lazy(() => import('./pages/admin/AdminRegistros'));
+const Contratar = lazy(() => import('./pages/Contratar'));
+const ResultadoPago = lazy(() => import('./pages/ResultadoPago'));
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { session } = useAuth();
@@ -52,6 +62,8 @@ export default function App() {
       <Route path="/ferias" element={<Ferias />} />
       <Route path="/ferias/:id" element={<FeriaDetalle />} />
       <Route path="/nosotros" element={<Nosotros />} />
+      <Route path="/contratar" element={<Contratar />} />
+      <Route path="/contratar/resultado" element={<ResultadoPago />} />
       <Route path="/privacidad" element={<Legal slug="privacidad" />} />
       <Route path="/tratamiento-datos" element={<Legal slug="tratamiento-datos" />} />
       <Route path="/aviso-legal" element={<Legal slug="aviso-legal" />} />
@@ -81,6 +93,18 @@ export default function App() {
         <Route path="escanear" element={<EmpresaEscanear />} />
         <Route path="ficha" element={<EmpresaFicha />} />
         <Route path="equipo" element={<EmpresaEquipo />} />
+        <Route path="perfil" element={<Perfil />} />
+      </Route>
+
+      <Route path="/admin" element={<RequireRole role="superadmin"><AppLayout role="superadmin" /></RequireRole>}>
+        <Route index element={<AdminResumen />} />
+        <Route path="organizadores" element={<AdminOrganizadores />} />
+        <Route path="solicitudes" element={<AdminSolicitudes />} />
+        <Route path="ferias" element={<AdminFerias />} />
+        <Route path="visitantes" element={<AdminVisitantes />} />
+        <Route path="registros" element={<AdminRegistros />} />
+        <Route path="planes" element={<AdminPlanes />} />
+        <Route path="usuarios" element={<AdminUsuarios />} />
         <Route path="perfil" element={<Perfil />} />
       </Route>
 

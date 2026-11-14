@@ -4,7 +4,7 @@ import { MapPin, Search } from 'lucide-react';
 import { empresasApi, inscripcionesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { leerQrStand, normalizar } from '../../lib/utils';
-import { Alert, Avatar, Card, PageHeader } from '../../components/ui';
+import { Alert, Avatar, Card, PageHeader, ErrorCarga } from '../../components/ui';
 import QRScanner from '../../components/QRScanner';
 
 export default function VisitanteEscanear() {
@@ -13,7 +13,7 @@ export default function VisitanteEscanear() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   // Solo las empresas de las ferias en las que está inscrito.
-  const { data } = useAsync(() => Promise.all([empresasApi.listar(), inscripcionesApi.listar()]), []);
+  const { data, error: errorCarga, recargar } = useAsync(() => Promise.all([empresasApi.listar(), inscripcionesApi.listar()]), []);
   const [empresas, inscripciones] = data ?? [[], []];
   const variasFerias = inscripciones.length > 1;
   const nombreFeria = useMemo(() => new Map(inscripciones.map((i) => [i.feriaId, i.feria?.nombre ?? ''])), [inscripciones]);
@@ -38,6 +38,7 @@ export default function VisitanteEscanear() {
   return (
     <>
       <PageHeader title="Escanear stand" subtitle="Escanea el QR del stand para abrir la ficha digital de la empresa." />
+      {errorCarga && !data && <ErrorCarga error={errorCarga} onReintentar={recargar} titulo="No pudimos cargar las empresas de tus ferias" />}
       <div className="scan-layout">
         <div className="scan-col">
           <QRScanner activo={activo} onResult={onResult} />

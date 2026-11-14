@@ -21,6 +21,27 @@ import type {
   NuevaEmpresa,
   NuevaFeria,
   NuevoVisitante,
+  DatosOrganizador,
+  MiPlan,
+  OrganizadorAdmin,
+  CambiosPlan,
+  Plan,
+  PlanAdmin,
+  ResumenAdmin,
+  SuperAdminUsuario,
+  DatosTransferencia,
+  EstadoSolicitud,
+  NuevaSolicitud,
+  SolicitudCreada,
+  MetodosPago,
+  ResultadoPago,
+  SolicitudPlan,
+  Aceptacion,
+  Actividad,
+  FeriaAdmin,
+  Pagina,
+  VisitanteAdminDetalle,
+  VisitanteAdminFila,
   PaginaLeads,
   PaginaVisitantes,
   ResultadoImportacion,
@@ -139,9 +160,13 @@ async function oNull<T>(p: Promise<T>): Promise<T | null> {
 
 /* ------------------------------------------------------------------ */
 
+export type RolConPassword = 'empresa' | 'organizador' | 'superadmin';
+
 export const authApi = {
   organizador: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/organizador', { email, password }),
   empresa: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/empresa', { email, password }),
+  /** Equipo de FeriaBot Pro. */
+  superadmin: (email: string, password: string) => pedir<AuthRespuesta>('POST', '/auth/superadmin', { email, password }),
   /** Ingreso con el código de la tarjeta o el contenido del QR. */
   visitante: (codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante', { codigo }),
   /** Envía un código de 6 dígitos al correo, para registrarse o para ingresar. */
@@ -151,10 +176,10 @@ export const authApi = {
   /** Ingreso del visitante con su correo y el código recibido. */
   visitanteCorreo: (email: string, codigo: string) => pedir<AuthRespuesta>('POST', '/auth/visitante/correo', { email, codigo }),
   /** Olvidé mi contraseña: envía un código al correo (responde igual aunque la cuenta no exista). */
-  recuperarEnviarCodigo: (email: string, role: 'empresa' | 'organizador') =>
+  recuperarEnviarCodigo: (email: string, role: RolConPassword) =>
     pedir<{ email: string; minutos: number }>('POST', '/auth/recuperar/enviar-codigo', { email, role }),
   /** Cambia la contraseña con el código recibido y devuelve la sesión iniciada. */
-  recuperarCambiar: (email: string, role: 'empresa' | 'organizador', codigo: string, password: string) =>
+  recuperarCambiar: (email: string, role: RolConPassword, codigo: string, password: string) =>
     pedir<AuthRespuesta>('POST', '/auth/recuperar/cambiar', { email, role, codigo, password }),
   yo: () => pedir<Session>('GET', '/auth/me'),
   /** Organizador o empresa: cambia la contraseña confirmando la actual (204). */
@@ -173,6 +198,9 @@ export const feriasApi = {
     pedir<Feria[]>('GET', '/ferias', undefined, { activas: activas ? 'true' : undefined, estado }),
 
   obtener: (id: string) => oNull(pedir<Feria>('GET', `/ferias/${encodeURIComponent(id)}`)),
+
+  /** Organizador: solo sus ferias (su panel). */
+  mias: () => pedir<Feria[]>('GET', '/ferias', undefined, { mias: 'true' }),
 
   /** Público: la feria con sus empresas (logo, nombre, rubro y stand). `null` si no existe. */
   obtenerPublica: (id: string) => oNull(pedir<FeriaPublica>('GET', `/ferias/${encodeURIComponent(id)}/publica`)),
@@ -348,6 +376,79 @@ export const vistasApi = {
 
   listar: (filtro: { visitanteId?: string; empresaId?: string; feriaId?: string } = {}) =>
     pedir<VistaDetalle[]>('GET', '/vistas', undefined, filtro),
+};
+
+/** Panel del Super Administrador. */
+export const adminApi = {
+  planes: () => pedir<PlanAdmin[]>('GET', '/admin/planes'),
+  /** Precios, límites, descripción o visibilidad en la página principal. */
+  actualizarPlan: (id: string, cambios: CambiosPlan) => pedir<PlanAdmin>('PATCH', `/admin/planes/${encodeURIComponent(id)}`, cambios),
+  resumen: () => pedir<ResumenAdmin>('GET', '/admin/resumen'),
+  organizadores: () => pedir<OrganizadorAdmin[]>('GET', '/admin/organizadores'),
+  /** Crea la cuenta y le envía su acceso por correo. */
+  crearOrganizador: (datos: DatosOrganizador) => pedir<OrganizadorAdmin>('POST', '/admin/organizadores', datos),
+  /** Ficha, plan, vigencia, suspender/reactivar (`activo`) o contraseña nueva. */
+  actualizarOrganizador: (id: string, cambios: Partial<DatosOrganizador>) =>
+    pedir<OrganizadorAdmin>('PATCH', `/admin/organizadores/${encodeURIComponent(id)}`, cambios),
+  /** Solo si no tiene ferias (409 si las tiene: se suspende en su lugar). */
+  eliminarOrganizador: (id: string) => pedir<void>('DELETE', `/admin/organizadores/${encodeURIComponent(id)}`),
+  usuarios: () => pedir<SuperAdminUsuario[]>('GET', '/admin/usuarios'),
+  crearUsuario: (datos: { nombre: string; email: string; password: string }) => pedir<SuperAdminUsuario>('POST', '/admin/usuarios', datos),
+  eliminarUsuario: (id: string) => pedir<void>('DELETE', `/admin/usuarios/${encodeURIComponent(id)}`),
+  guardarTransferencia: (datos: DatosTransferencia) => pedir<DatosTransferencia>('PUT', '/admin/pago/transferencia', datos),
+  solicitudes: (estado?: EstadoSolicitud) => pedir<SolicitudPlan[]>('GET', '/admin/solicitudes', undefined, { estado }),
+  solicitudesPendientes: () => pedir<number>('GET', '/admin/solicitudes/pendientes'),
+  comprobante: (id: string) => pedir<{ comprobante: string | null }>('GET', `/admin/solicitudes/${encodeURIComponent(id)}/comprobante`),
+  /** Pago confirmado: crea la cuenta del organizador y le envía su acceso. */
+  aprobarSolicitud: (id: string) => pedir<OrganizadorAdmin>('POST', `/admin/solicitudes/${encodeURIComponent(id)}/aprobar`),
+  /** Todas las ferias de todos los organizadores (sin portada; para editar se pide la feria completa). */
+  ferias: () => pedir<FeriaAdmin[]>('GET', '/admin/ferias'),
+  /** Visitantes de toda la plataforma (la consulta queda en el registro de actividad). */
+  visitantes: (opciones: { q?: string; pagina: number; porPagina: number }) =>
+    pedir<Pagina<VisitanteAdminFila>>('GET', '/admin/visitantes/pagina', undefined, {
+      q: opciones.q?.trim(),
+      pagina: String(opciones.pagina),
+      porPagina: String(opciones.porPagina),
+    }),
+  visitante: (id: string) => pedir<VisitanteAdminDetalle>('GET', `/admin/visitantes/${encodeURIComponent(id)}`),
+  actividad: (opciones: { q?: string; accion?: string; pagina: number; porPagina: number }) =>
+    pedir<Pagina<Actividad>>('GET', '/admin/actividad', undefined, {
+      q: opciones.q?.trim(),
+      accion: opciones.accion,
+      pagina: String(opciones.pagina),
+      porPagina: String(opciones.porPagina),
+    }),
+  aceptaciones: (opciones: { q?: string; origen?: string; pagina: number; porPagina: number }) =>
+    pedir<Pagina<Aceptacion>>('GET', '/admin/aceptaciones', undefined, {
+      q: opciones.q?.trim(),
+      origen: opciones.origen,
+      pagina: String(opciones.pagina),
+      porPagina: String(opciones.porPagina),
+    }),
+  rechazarSolicitud: (id: string, motivo: string) =>
+    pedir<SolicitudPlan>('POST', `/admin/solicitudes/${encodeURIComponent(id)}/rechazar`, { motivo }),
+};
+
+/** Público: planes visibles con sus precios (página principal) y contratación por transferencia. */
+export const planesApi = {
+  listar: () => pedir<Plan[]>('GET', '/planes'),
+  /** Cuenta bancaria donde se transfiere. */
+  transferencia: () => pedir<DatosTransferencia>('GET', '/pago/transferencia'),
+  /** Formas de pago activas (la tarjeta, si PayPhone está configurado). */
+  metodos: () => pedir<MetodosPago>('GET', '/pago/metodos'),
+  /** Solo modo demostración: simula el pago en la cajita y devuelve lo que PayPhone pondría en la URL de respuesta. */
+  pagarDemo: (datos: { clientTransactionId: string; aprobado: boolean; marca: string; ultimos: string }) =>
+    pedir<{ id: number; clientTransactionId: string }>('POST', '/pagos/demo/pagar', datos),
+  /** Al volver de PayPhone: el backend confirma el pago con PayPhone y, si está aprobado, crea la cuenta. */
+  confirmarPago: (id: number, clientTransactionId: string) =>
+    pedir<ResultadoPago>('POST', '/pagos/payphone/confirmar', { id, clientTransactionId }),
+  /** Transferencia: queda pendiente hasta que un encargado la apruebe. Tarjeta: devuelve `pagoUrl` de PayPhone. */
+  solicitar: (datos: NuevaSolicitud) => pedir<SolicitudCreada>('POST', '/solicitudes', datos),
+};
+
+/** El organizador: su plan, límites y uso. */
+export const miPlanApi = {
+  obtener: () => pedir<MiPlan>('GET', '/mi-plan'),
 };
 
 export const demoApi = {

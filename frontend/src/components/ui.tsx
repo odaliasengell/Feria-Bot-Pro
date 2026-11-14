@@ -83,6 +83,21 @@ export function Alert({ tone = 'orange', children }: { tone?: Tone; children: Re
   return <div className={`alert tone-${tone}`}>{children}</div>;
 }
 
+/** No se pudo cargar algo: el motivo y un botón para reintentar (en vez de mostrar una lista vacía engañosa). */
+export function ErrorCarga({ error, onReintentar, titulo = 'No pudimos cargar la información' }: { error: string; onReintentar?: () => void; titulo?: string }) {
+  return (
+    <div className="error-carga" role="alert">
+      <strong>{titulo}</strong>
+      <span>{error}</span>
+      {onReintentar && (
+        <button type="button" className="btn btn-outline btn-sm" onClick={onReintentar}>
+          Reintentar
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function Modal({
   open,
   onClose,

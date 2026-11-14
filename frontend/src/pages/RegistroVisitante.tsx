@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { ApiError, authApi, feriasApi, visitantesApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { rangoFechas } from '../lib/utils';
-import { Alert, EmptyState, Loader } from '../components/ui';
+import { Alert, EmptyState, Loader, ErrorCarga } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
 import PortadaFeria from '../components/PortadaFeria';
 import AceptoPolitica from '../components/AceptoPolitica';
@@ -25,7 +25,7 @@ export default function RegistroVisitante() {
     descripcion: 'Regístrate en la feria en un minuto y recibe tu tarjeta con QR para que las empresas guarden tu visita.',
   });
   const [elegida, setElegida] = useState<Feria | null>(null);
-  const { data, cargando } = useAsync(
+  const { data, cargando, error: errorCarga, recargar } = useAsync(
     () => (feriaId ? feriasApi.obtener(feriaId).then((f) => (f ? [f] : [])) : feriasApi.listar(true)),
     [feriaId],
   );
@@ -60,6 +60,8 @@ export default function RegistroVisitante() {
 
         {cargando && !data ? (
           <Loader />
+        ) : errorCarga && !data ? (
+          <ErrorCarga error={errorCarga} onReintentar={recargar} titulo="No pudimos cargar las ferias" />
         ) : feriaId && !feria ? (
           <EmptyState icon={<CalendarDays />} title="Esta feria no existe">
             <Link to="/registro" className="btn btn-primary">Ver ferias abiertas</Link>

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { authApi } from '../services/api';
+import { authApi, type RolConPassword } from '../services/api';
 import { Alert, Field } from '../components/ui';
 import CodigoCorreo from '../components/CodigoCorreo';
 import PasswordInput from '../components/PasswordInput';
@@ -11,12 +11,12 @@ import { errorConfirmacion, errorEmail, errorPassword } from '../lib/validacion'
 import { usePagina } from '../lib/seo';
 import { useValidacion } from '../lib/useValidacion';
 
-type RolConPassword = 'empresa' | 'organizador';
 
 /** Olvidé mi contraseña: código por correo y nueva contraseña (empresas y organizador). */
 export default function RecuperarPassword() {
   const [params] = useSearchParams();
-  const role: RolConPassword = params.get('rol') === 'organizador' ? 'organizador' : 'empresa';
+  const rolParam = params.get('rol');
+  const role: RolConPassword = rolParam === 'organizador' || rolParam === 'superadmin' ? rolParam : 'empresa';
   const { login } = useAuth();
   const navigate = useNavigate();
   usePagina({ titulo: 'Recuperar contraseña', noIndex: true });
@@ -51,7 +51,7 @@ export default function RecuperarPassword() {
     if (!vPass.validar()) throw new Error(errorPassword(password) ?? errorConfirmacion(password, confirmar) ?? 'Revisa la contraseña.');
     login(await authApi.recuperarCambiar(correo, role, codigo, password));
     toast.exito('Contraseña cambiada. ¡Bienvenido de nuevo!');
-    navigate(`/${role}`);
+    navigate(role === 'superadmin' ? '/admin' : `/${role}`);
   }
 
   return (
@@ -77,7 +77,9 @@ export default function RecuperarPassword() {
         <h1>
           <KeyRound size={26} /> Olvidé mi contraseña
         </h1>
-        <p className="muted">{role === 'empresa' ? 'Cuenta de empresa participante' : 'Cuenta de la organización'}</p>
+        <p className="muted">
+          {role === 'empresa' ? 'Cuenta de empresa participante' : role === 'superadmin' ? 'Cuenta de FeriaBot Pro' : 'Cuenta de la organización'}
+        </p>
 
         {paso === 'correo' ? (
           <form className="auth-form" onSubmit={pedirCodigo}>

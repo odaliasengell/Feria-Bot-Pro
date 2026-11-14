@@ -6,14 +6,14 @@ import { ApiError, empresasApi, feriasApi, inscripcionesApi, vistasApi } from '.
 import { useAsync } from '../lib/useAsync';
 import { rangoFechas } from '../lib/utils';
 import { usePagina } from '../lib/seo';
-import { Avatar, EmptyState, Loader } from '../components/ui';
+import { Avatar, EmptyState, Loader, ErrorCarga } from '../components/ui';
 
 /** Ficha digital de una empresa. Es lo que abre el QR del stand. */
 export default function FichaPublica() {
   const { id = '' } = useParams();
   const { session } = useAuth();
   const navigate = useNavigate();
-  const { data, cargando } = useAsync(async () => {
+  const { data, cargando, error: errorCarga, recargar } = useAsync(async () => {
     const empresa = await empresasApi.obtener(id);
     const feria = empresa ? await feriasApi.obtener(empresa.feriaId) : null;
     return { empresa, feria };
@@ -74,6 +74,12 @@ export default function FichaPublica() {
   }
 
   if (cargando && !data) return <div className="ficha-page"><Loader /></div>;
+  if (errorCarga && !data)
+    return (
+      <div className="ficha-page">
+        <ErrorCarga error={errorCarga} onReintentar={recargar} titulo="No pudimos cargar la ficha" />
+      </div>
+    );
   if (!empresa)
     return (
       <div className="ficha-page">

@@ -4,16 +4,18 @@ import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 import { Alert, Card, Field, PageHeader } from '../components/ui';
 import PasswordInput from '../components/PasswordInput';
+import MiPlanTarjeta from '../components/MiPlanTarjeta';
 import { useToast } from '../context/ToastContext';
 import { errorConfirmacion, errorEmail, errorPassword } from '../lib/validacion';
 import { useValidacion } from '../lib/useValidacion';
 
-/** Perfil del organizador y de la empresa (/organizador/perfil y /empresa/perfil): contraseña y correo de ingreso. */
+/** Perfil del organizador, la empresa y el Super Administrador: contraseña y correo de ingreso (y el plan del organizador). */
 export default function Perfil() {
   const { session } = useAuth();
   return (
     <>
       <PageHeader title="Perfil" subtitle={`Datos de acceso de ${session?.nombre ?? 'tu cuenta'}.`} />
+      {session?.role === 'organizador' && <MiPlanTarjeta />}
       <div className="grid-2">
         <CambiarPassword />
         <CambiarCorreo />

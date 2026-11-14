@@ -1,7 +1,12 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
+  Briefcase,
   Building2,
+  ShieldCheck,
+  Inbox,
+  Tags,
+  ScrollText,
   CalendarDays,
   ContactRound,
   IdCard,
@@ -17,12 +22,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Role } from '../types';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Avatar, Modal } from './ui';
 import { usePagina } from '../lib/seo';
 import { FeriaSelector } from './FeriaSelector';
+import { adminApi } from '../services/api';
+import AvisoPlan from './AvisoPlan';
 
 const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boolean }[]> = {
   organizador: [
@@ -41,6 +48,17 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
     { to: '/empresa/equipo', label: 'Mi equipo', icon: UsersRound },
     { to: '/empresa/perfil', label: 'Perfil', icon: UserRound },
   ],
+  superadmin: [
+    { to: '/admin', label: 'Resumen', icon: LayoutDashboard, end: true },
+    { to: '/admin/solicitudes', label: 'Solicitudes', icon: Inbox },
+    { to: '/admin/organizadores', label: 'Organizadores', icon: Briefcase },
+    { to: '/admin/ferias', label: 'Ferias', icon: CalendarDays },
+    { to: '/admin/visitantes', label: 'Visitantes', icon: Users },
+    { to: '/admin/planes', label: 'Planes', icon: Tags },
+    { to: '/admin/usuarios', label: 'Equipo', icon: ShieldCheck },
+    { to: '/admin/registros', label: 'Registros', icon: ScrollText },
+    { to: '/admin/perfil', label: 'Perfil', icon: UserRound },
+  ],
   visitante: [
     { to: '/visitante', label: 'Mi tarjeta', icon: IdCard, end: true },
     { to: '/visitante/ferias', label: 'Ferias', icon: CalendarDays },
@@ -53,6 +71,7 @@ const ROL_LABEL: Record<Role, string> = {
   organizador: 'Organizador',
   empresa: 'Empresa participante',
   visitante: 'Visitante',
+  superadmin: 'Super Administrador',
 };
 
 export default function AppLayout({ role }: { role: Role }) {
@@ -62,6 +81,13 @@ export default function AppLayout({ role }: { role: Role }) {
   usePagina({ titulo: ROL_LABEL[role], noIndex: true });
   const toast = useToast();
   const [confirmarSalida, setConfirmarSalida] = useState(false);
+  const { pathname } = useLocation();
+  /** Super Administrador: solicitudes por revisar (se actualiza al cambiar de página). */
+  const [pendientes, setPendientes] = useState(0);
+  useEffect(() => {
+    if (role !== 'superadmin') return;
+    adminApi.solicitudesPendientes().then(setPendientes).catch(() => {});
+  }, [role, pathname]);
   /** Los botones de cerrar sesión primero piden confirmación. */
   const salir = () => setConfirmarSalida(true);
   const cerrarSesion = () => {
@@ -89,6 +115,11 @@ export default function AppLayout({ role }: { role: Role }) {
             <NavLink key={to} to={to} end={end} className="side-link">
               <Icon size={19} />
               {label}
+              {to === '/admin/solicitudes' && pendientes > 0 && (
+                <span className="nav-contador" aria-label={`${pendientes} pendientes`}>
+                  {pendientes}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -117,6 +148,7 @@ export default function AppLayout({ role }: { role: Role }) {
       </header>
 
       <main className="main">
+        {role === 'organizador' && <AvisoPlan />}
         {role === 'organizador' && <FeriaSelector />}
         <Outlet />
       </main>

@@ -11,7 +11,9 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import SeccionPlanes from '../components/SeccionPlanes';
 import { jsonLdOrganizacion, usePagina } from '../lib/seo';
 
 interface Columna {
@@ -70,6 +72,13 @@ const QR_ON = [0, 1, 2, 4, 6, 7, 8, 13, 14, 16, 20, 22, 24, 25, 28, 30, 34, 35, 
 
 export default function Landing() {
   const { session } = useAuth();
+  // /#planes (desde otras páginas): baja a la sección cuando ya está dibujada.
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 300);
+    return () => clearTimeout(t);
+  }, []);
   usePagina({
     descripcion:
       'Regístrate en la feria, recibe tu tarjeta con QR y guarda los contactos de cada stand. Las empresas califican sus leads y el organizador ve todo en tiempo real.',
@@ -88,6 +97,7 @@ export default function Landing() {
           </Link>
           <div className="topnav-links">
             <Link to="/ferias">Ferias</Link>
+            <a href="#planes">Planes</a>
             <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="topnav-actions">
@@ -229,6 +239,8 @@ export default function Landing() {
         </section>
       </div>
 
+      <SeccionPlanes />
+
       <div className="band-paper" id="resultados">
         <section className="section outcome-split">
           <div className="section-head">
@@ -293,6 +305,8 @@ export default function Landing() {
           </div>
           <div className="foot-col">
             <h4>Producto</h4>
+            <a href="#planes">Planes y precios</a>
+            <Link to="/contratar">Contratar</Link>
             <Link to="/nosotros">Nosotros</Link>
           </div>
           <div className="foot-col">

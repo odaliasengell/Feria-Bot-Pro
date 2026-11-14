@@ -23,7 +23,9 @@ export default function Ingresar() {
   /** Feria desde la que llegó el visitante (registro con correo ya existente): se le ofrece inscribirse al entrar. */
   const feriaPendiente = params.get('feria');
   const destinoVisitante = feriaPendiente ? `/visitante?feria=${encodeURIComponent(feriaPendiente)}` : '/visitante';
-  const [rol, setRol] = useState<Role>(ROLES.some((r) => r.id === inicial) ? inicial : 'visitante');
+  const [rol, setRol] = useState<Role>(inicial === 'superadmin' || ROLES.some((r) => r.id === inicial) ? inicial : 'visitante');
+  /** El acceso del equipo de FeriaBot Pro no aparece en las pestañas: se entra por /ingresar?rol=superadmin. */
+  const esAdmin = rol === 'superadmin';
   const { login } = useAuth();
   const navigate = useNavigate();
   usePagina({ titulo: 'Ingresar', noIndex: true });
@@ -55,13 +57,15 @@ export default function Ingresar() {
         return;
       }
       const auth =
-        rol === 'organizador'
+        rol === 'superadmin'
+          ? await authApi.superadmin(email.trim(), password)
+          : rol === 'organizador'
           ? await authApi.organizador(email.trim(), password)
           : rol === 'empresa'
             ? await authApi.empresa(email.trim(), password)
             : await authApi.visitante(codigo.trim());
       login(auth);
-      navigate(rol === 'visitante' ? destinoVisitante : `/${rol}`);
+      navigate(rol === 'visitante' ? destinoVisitante : rol === 'superadmin' ? '/admin' : `/${rol}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo ingresar');
     } finally {
@@ -89,9 +93,10 @@ export default function Ingresar() {
         <Link to="/" className="back-link">
           <ArrowLeft size={16} /> Volver al inicio
         </Link>
-        <h1>Ingresar</h1>
+        <h1>{esAdmin ? 'Administración FeriaBot Pro' : 'Ingresar'}</h1>
+        {esAdmin && <p className="muted">Acceso del equipo de FeriaBot Pro para gestionar organizadores y planes.</p>}
 
-        <div className="role-tabs" role="tablist">
+        {!esAdmin && <div className="role-tabs" role="tablist">
           {ROLES.map((r) => (
             <button
               key={r.id}
@@ -111,7 +116,7 @@ export default function Ingresar() {
               <span>{r.desc}</span>
             </button>
           ))}
-        </div>
+        </div>}
 
         {rol === 'visitante' && correoPendiente ? (
           <CodigoCorreo

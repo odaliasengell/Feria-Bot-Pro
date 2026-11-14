@@ -22,7 +22,7 @@ import { feriasApi, inscripcionesApi, leadsApi, visitantesApi, vistasApi } from 
 import { useAsync } from '../../lib/useAsync';
 import { useEnLinea } from '../../lib/useEnLinea';
 import { haceCuanto, rangoFechas } from '../../lib/utils';
-import { Alert, Avatar, Card, EmptyState, Loader, Modal } from '../../components/ui';
+import { Alert, Avatar, Card, EmptyState, Loader, Modal, ErrorCarga } from '../../components/ui';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { TarjetaVisitante } from '../../components/Credenciales';
 import PortadaFeria from '../../components/PortadaFeria';
@@ -34,7 +34,7 @@ export default function VisitanteTarjeta() {
   const [params, setParams] = useSearchParams();
   const pedida = params.get('feria');
   const enLinea = useEnLinea();
-  const { data, cargando, recargar } = useAsync(
+  const { data, cargando, error: errorCarga, recargar } = useAsync(
     () =>
       Promise.all([
         visitantesApi.obtener(id),
@@ -56,13 +56,15 @@ export default function VisitanteTarjeta() {
   if (cargando && !data) return <Loader />;
   const [visitante, inscripciones, leads, vistas, abiertas, feriaPedida] = data ?? [null, [], [], [], [], null];
   if (!visitante)
-    return enLinea ? (
-      <Alert>No encontramos tu registro. Vuelve a ingresar.</Alert>
-    ) : (
+    return !enLinea ? (
       <Alert>
         <WifiOff size={16} style={{ verticalAlign: -3 }} /> Sin conexión. Abre tu tarjeta una vez con internet para tenerla
         disponible sin conexión.
       </Alert>
+    ) : errorCarga ? (
+      <ErrorCarga error={errorCarga} onReintentar={recargar} titulo="No pudimos cargar tu tarjeta" />
+    ) : (
+      <Alert>No encontramos tu registro. Vuelve a ingresar.</Alert>
     );
 
   const todas = inscripciones

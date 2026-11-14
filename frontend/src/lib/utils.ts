@@ -9,7 +9,7 @@ export const CALIFICACIONES: Record<Calificacion, { label: string; desc: string;
 
 export const CALIFICACION_ORDEN: Calificacion[] = ['interesado', 'visita', 'correo', 'no_interesado'];
 
-export type Tone = 'teal' | 'blue' | 'orange' | 'gray' | 'navy';
+export type Tone = 'teal' | 'blue' | 'orange' | 'gray' | 'navy' | 'red';
 
 export const ESTADOS_LEAD: Record<EstadoLead, { label: string; tone: Tone }> = {
   nuevo: { label: 'Nuevo', tone: 'gray' },

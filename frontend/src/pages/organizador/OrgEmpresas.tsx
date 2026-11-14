@@ -9,7 +9,7 @@ import PortadaFeria from '../../components/PortadaFeria';
 import { paginaDe, usePaginado } from '../../lib/usePaginado';
 import Paginacion from '../../components/Paginacion';
 import { useAsync } from '../../lib/useAsync';
-import { Alert, Avatar, EmptyState, Field, Loader, Modal, PageHeader } from '../../components/ui';
+import { Alert, Avatar, EmptyState, Field, Loader, Modal, PageHeader, ErrorCarga } from '../../components/ui';
 import { CartelStand } from '../../components/Credenciales';
 import PasswordInput from '../../components/PasswordInput';
 import { mensajeError, useToast } from '../../context/ToastContext';
@@ -40,7 +40,7 @@ export default function OrgEmpresas() {
 }
 
 function EmpresasFeria({ feria }: { feria: Feria }) {
-  const { data, cargando, recargar } = useAsync(
+  const { data, cargando, error: errorCarga, recargar } = useAsync(
     () => Promise.all([empresasApi.listar(feria.id), feriasApi.estadisticas(feria.id)]),
     [feria.id],
   );
@@ -101,6 +101,8 @@ function EmpresasFeria({ feria }: { feria: Feria }) {
 
       {cargando && !data ? (
         <Loader />
+      ) : errorCarga && !data ? (
+        <ErrorCarga error={errorCarga} onReintentar={recargar} titulo="No pudimos cargar las empresas" />
       ) : empresas.length === 0 ? (
         <EmptyState icon={<Building2 />} title="No hay empresas cargadas">
           <button className="btn btn-primary" onClick={() => setEditando('nueva')}>Agregar la primera</button>

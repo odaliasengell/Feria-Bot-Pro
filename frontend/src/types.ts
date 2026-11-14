@@ -1,4 +1,4 @@
-export type Role = 'organizador' | 'visitante' | 'empresa';
+export type Role = 'organizador' | 'visitante' | 'empresa' | 'superadmin';
 
 /** Feria creada por el organizador. Empresas, visitantes inscritos y leads pertenecen a una feria. */
 /** Calculado por el backend según las fechas: antes del inicio, entre inicio y fin, o después del fin. */
@@ -89,6 +89,9 @@ export interface Visitante {
   email: string;
   empresa: string;
   ciudad: string;
+  /** Última aceptación de la política de privacidad y su versión. */
+  politicaAceptadaEn?: string | null;
+  politicaVersion?: string | null;
   creadoEn: string;
 }
 
@@ -226,4 +229,275 @@ export interface EstadisticasFeria {
   leadsPorCalificacion: Partial<Record<Calificacion, number>>;
   /** Los 5 inscritos más recientes. */
   ultimosVisitantes: Visitante[];
+}
+
+/* ---------- Planes y organizadores (Super Administrador) ---------- */
+
+export type PlanId = 'basico' | 'profesional' | 'premium';
+/** activa · por_vencer (15 días o menos) · vencida · programada (aún no empieza) · suspendida (no puede ingresar). */
+export type EstadoCuenta = 'activa' | 'por_vencer' | 'vencida' | 'programada' | 'suspendida';
+
+export interface Plan {
+  id: PlanId;
+  nombre: string;
+  descripcion: string;
+  /** USD. */
+  precioMensual: number;
+  precioAnual: number;
+  /** Se muestra en la página principal. */
+  publico: boolean;
+  /** Ferias en curso o próximas a la vez (las finalizadas no cuentan). */
+  ferias: number;
+  empresasPorFeria: number;
+  visitantesPorFeria: number;
+}
+
+/** GET /admin/planes */
+export interface PlanAdmin extends Plan {
+  /** Organizadores con este plan. */
+  clientes: number;
+  actualizadoEn?: string | null;
+}
+
+export type CambiosPlan = Partial<Pick<Plan, 'nombre' | 'descripcion' | 'precioMensual' | 'precioAnual' | 'ferias' | 'empresasPorFeria' | 'visitantesPorFeria' | 'publico'>>;
+
+export interface FeriaUso {
+  id: string;
+  nombre: string;
+  estado: EstadoFeria;
+  fechaInicio: string;
+  fechaFin: string;
+  empresas: number;
+  visitantes: number;
+}
+
+export interface UsoPlan {
+  feriasActivas: number;
+  feriasTotal: number;
+  ferias: FeriaUso[];
+}
+
+export interface OrganizadorCuenta {
+  id: string;
+  nombre: string;
+  ruc?: string | null;
+  contactoNombre: string;
+  telefono: string;
+  direccion: string;
+  ciudad: string;
+  sitioWeb?: string | null;
+  email: string;
+  plan: PlanId;
+  planInicio?: string | null;
+  planFin?: string | null;
+  activo: boolean;
+  estado: EstadoCuenta;
+  creadoEn: string;
+}
+
+export interface OrganizadorAdmin extends OrganizadorCuenta {
+  /** Notas internas del Super Administrador. */
+  notas: string;
+  uso: UsoPlan;
+}
+
+/** Datos para crear o editar un organizador (la contraseña es obligatoria solo al crear). */
+export interface DatosOrganizador {
+  nombre: string;
+  ruc: string;
+  contactoNombre: string;
+  telefono: string;
+  direccion: string;
+  ciudad: string;
+  sitioWeb: string;
+  notas: string;
+  email: string;
+  password?: string;
+  plan: PlanId;
+  planInicio: string;
+  planFin: string;
+  activo: boolean;
+}
+
+/** GET /mi-plan */
+export interface MiPlan {
+  organizador: OrganizadorCuenta;
+  plan: Plan;
+  uso: UsoPlan;
+  puedeOperar: boolean;
+  diasRestantes?: number | null;
+}
+
+export interface ResumenAdmin {
+  organizadores: number;
+  porEstado: Record<EstadoCuenta, number>;
+  porPlan: Record<PlanId, number>;
+  feriasActivas: number;
+  empresas: number;
+  inscripciones: number;
+  /** Suma del precio mensual de las cuentas con el plan vigente. */
+  ingresoMensual: number;
+  solicitudesPendientes: number;
+  /** Cuentas por vencer o vencidas (hasta 10). */
+  porVencer: OrganizadorCuenta[];
+}
+
+export interface SuperAdminUsuario {
+  id: string;
+  nombre: string;
+  email: string;
+  creadoEn: string;
+}
+
+/* ---------- Contratar un plan ---------- */
+
+export type Periodo = 'mensual' | 'anual';
+/** Por ahora solo transferencia; «tarjeta» queda para la pasarela de pago. */
+export type MetodoPago = 'transferencia' | 'tarjeta';
+/** pago_pendiente: pago con tarjeta que el cliente no terminó. */
+export type EstadoSolicitud = 'pendiente' | 'pago_pendiente' | 'aprobada' | 'rechazada';
+
+/** Cuenta bancaria para transferir (la edita el Super Administrador). */
+export interface DatosTransferencia {
+  banco: string;
+  tipoCuenta: string;
+  numeroCuenta: string;
+  titular: string;
+  identificacion: string;
+  correo: string;
+  instrucciones: string;
+}
+
+export interface NuevaSolicitud {
+  planId: PlanId;
+  periodo: Periodo;
+  metodoPago: MetodoPago;
+  nombre: string;
+  ruc: string;
+  contactoNombre: string;
+  email: string;
+  telefono: string;
+  ciudad: string;
+  mensaje: string;
+  referencia: string;
+  /** data URL de la imagen o el PDF (solo transferencia). */
+  comprobante?: string;
+  aceptaPolitica: boolean;
+  empresaWeb: string;
+}
+
+export interface SolicitudCreada {
+  id: string;
+  planNombre: string;
+  periodo: Periodo;
+  monto: number;
+  email: string;
+  /** Pago con tarjeta: opciones de la Cajita de Pagos de PayPhone (`new PPaymentButtonBox(cajita)`). */
+  cajita?: Record<string, unknown> | null;
+}
+
+/** Formas de pago activas. */
+export interface MetodosPago {
+  transferencia: boolean;
+  tarjeta: boolean;
+  /** La tarjeta funciona en modo demostración (sin PayPhone real). */
+  demo: boolean;
+}
+
+/** POST /pagos/payphone/confirmar */
+export interface ResultadoPago {
+  estado: EstadoSolicitud;
+  planNombre: string;
+  periodo: Periodo;
+  monto: number;
+  email: string;
+  mensaje: string;
+  tarjeta: string;
+  autorizacion: string;
+}
+
+export interface SolicitudPlan {
+  id: string;
+  planId: PlanId;
+  planNombre: string;
+  periodo: Periodo;
+  monto: number;
+  metodoPago: MetodoPago;
+  nombre: string;
+  ruc: string;
+  contactoNombre: string;
+  email: string;
+  telefono: string;
+  ciudad: string;
+  mensaje: string;
+  referencia: string;
+  tieneComprobante: boolean;
+  /** Pago con tarjeta (PayPhone). */
+  transaccionId: string;
+  autorizacion: string;
+  tarjeta: string;
+  estado: EstadoSolicitud;
+  motivoRechazo: string;
+  revisadoPor?: string | null;
+  revisadoEn?: string | null;
+  organizadorId?: string | null;
+  creadoEn: string;
+}
+
+/* ---------- Super Administrador: ferias, visitantes y registros ---------- */
+
+export interface FeriaAdmin extends Feria {
+  organizadorId: string;
+  organizadorNombre: string;
+}
+
+export interface VisitanteAdminFila extends Visitante {
+  /** En cuántas ferias está inscrito. */
+  ferias: number;
+}
+
+export interface InscripcionAdmin {
+  feriaId: string;
+  feriaNombre: string;
+  organizadorNombre: string;
+  estado: EstadoFeria;
+  fechaInicio: string;
+  fechaFin: string;
+  inscritoEn: string;
+  asistioEn?: string | null;
+  leads: number;
+}
+
+/** Constancia de una aceptación de la política de privacidad y tratamiento de datos. */
+export interface Aceptacion {
+  id: string;
+  tipo: 'visitante' | 'solicitud_plan' | string;
+  titularId: string;
+  nombre: string;
+  email: string;
+  version: string;
+  /** registro_publico · registro_organizador · contratacion · historico */
+  origen: string;
+  registradoPor: string;
+  ip: string;
+  userAgent: string;
+  creadoEn: string;
+}
+
+export interface VisitanteAdminDetalle extends Visitante {
+  inscripciones: InscripcionAdmin[];
+  aceptaciones: Aceptacion[];
+}
+
+/** Acción del equipo de FeriaBot Pro (registro de actividad). */
+export interface Actividad {
+  id: string;
+  actorRol: string;
+  actorNombre: string;
+  accion: string;
+  descripcion: string;
+  entidad: string;
+  entidadId: string;
+  ip: string;
+  creadoEn: string;
 }

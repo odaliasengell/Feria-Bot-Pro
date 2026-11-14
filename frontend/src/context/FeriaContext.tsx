@@ -31,7 +31,7 @@ export function FeriaProvider({ children }: { children: ReactNode }) {
 
   const recargar = useCallback(async () => {
     try {
-      setFerias(await feriasApi.listar());
+      setFerias(await feriasApi.mias());
     } finally {
       setCargando(false);
     }
