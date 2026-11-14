@@ -14,11 +14,32 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
-from .models import CodigoVerificacion, Empresa, Feria, Inscripcion, Lead, Organizador, Visitante, VistaFicha
+from .planes import crear_planes_iniciales
+from .models import CodigoVerificacion, Empresa, Feria, Inscripcion, Lead, Organizador, SuperAdmin, Visitante, VistaFicha
 from .security import hash_password
 from .utils import ahora, ruc_persona_natural, uid
 
 PASSWORD_DEMO_EMPRESAS = "empresa123"
+
+
+def crear_superadmin_inicial(db: Session) -> None:
+    """Crea el Super Administrador de SUPERADMIN_EMAIL solo si todavía no hay ninguno."""
+    if db.scalar(select(SuperAdmin.id).limit(1)):
+        return
+    db.add(
+        SuperAdmin(
+            id=uid("sa-"),
+            nombre=settings.superadmin_nombre,
+            email=settings.superadmin_email.lower(),
+            password_hash=hash_password(settings.superadmin_password),
+        )
+    )
+    db.commit()
+
+
+def organizador_principal(db: Session) -> Organizador | None:
+    """El organizador más antiguo: dueño de la demo y de los datos de prueba."""
+    return db.scalar(select(Organizador).order_by(Organizador.creado_en).limit(1))
 
 
 def crear_organizador_inicial(db: Session) -> None:
@@ -36,6 +57,9 @@ def crear_organizador_inicial(db: Session) -> None:
             nombre=settings.admin_nombre,
             email=email,
             password_hash=hash_password(settings.admin_password),
+            plan="premium",
+            plan_inicio=date.today(),
+            plan_fin=date.today() + timedelta(days=365),
         )
     )
     db.commit()
@@ -48,14 +72,18 @@ def cargar_demo(db: Session) -> None:
         return t0 - timedelta(minutes=minutos)
 
     hoy = date.today()
+    org = organizador_principal(db)
+    if org is None:
+        crear_organizador_inicial(db)
+        org = organizador_principal(db)
     db.add(Feria(
-        id="feria-demo", nombre="Expo Negocios 2026", lugar="Centro de Convenciones, Quito",
+        id="feria-demo", organizador_id=org.id, nombre="Expo Negocios 2026", lugar="Centro de Convenciones, Quito",
         descripcion="Feria de negocios con empresas de alimentos, energía, textil, software y agroindustria.",
         fecha_inicio=hoy, fecha_fin=hoy + timedelta(days=2), inscripciones_abiertas=True,
         creado_en=hace(60 * 24 * 7),
     ))
     db.add(Feria(
-        id="feria-emprende", nombre="Feria de Emprendimiento", lugar="Parque Bicentenario, Quito",
+        id="feria-emprende", organizador_id=org.id, nombre="Feria de Emprendimiento", lugar="Parque Bicentenario, Quito",
         descripcion="Emprendimientos locales: gastronomía, artesanía y tecnología.",
         fecha_inicio=hoy + timedelta(days=30), fecha_fin=hoy + timedelta(days=31), inscripciones_abiertas=True,
         creado_en=hace(60 * 24 * 2),
@@ -152,6 +180,8 @@ def main() -> None:
     Base.metadata.create_all(engine)
     migrar(engine)
     with SessionLocal() as db:
+        crear_planes_iniciales(db)
+        crear_superadmin_inicial(db)
         crear_organizador_inicial(db)
         if "--reset" in sys.argv:
             reiniciar_demo(db)

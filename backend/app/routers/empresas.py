@@ -19,9 +19,10 @@ from ..schemas import (
     UsuarioEmpresaCrear,
     UsuarioEmpresaOut,
 )
-from ..security import hash_password, requiere, solo_propio
+from ..security import hash_password, requiere, sesion_opcional, solo_propio
 from ..utils import uid
-from .ferias import obtener_feria
+from ..planes import exigir_cupo_empresas
+from .ferias import feria_de, ids_ferias_de
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -46,6 +47,14 @@ def obtener_empresa(db: Session, empresa_id: str) -> Empresa:
     return empresa
 
 
+def empresa_de(db: Session, empresa_id: str, sesion: Sesion | None) -> Empresa:
+    """La empresa; un organizador solo accede a las de sus ferias (si no, 404)."""
+    empresa = obtener_empresa(db, empresa_id)
+    if sesion is not None and sesion.role == "organizador" and empresa.feria.organizador_id != sesion.ref_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Empresa no encontrada")
+    return empresa
+
+
 def correo_libre(db: Session, email: str, *, excepto_empresa: str | None = None, excepto_usuario: str | None = None) -> None:
     """El login de empresa busca el correo en empresas y en vendedores: no puede repetirse en ninguna de las dos."""
     empresa = db.scalar(select(Empresa.id).where(Empresa.email == email))
@@ -59,10 +68,17 @@ def _validar_email_libre(db: Session, email: str, excepto: str | None = None) ->
 
 
 @router.get("", response_model=list[EmpresaOut])
-def listar(db: DB, feria_id: Annotated[str | None, Query(alias="feriaId")] = None):
+def listar(
+    db: DB,
+    sesion: Annotated[Sesion | None, Depends(sesion_opcional)],
+    feria_id: Annotated[str | None, Query(alias="feriaId")] = None,
+):
+    """Público (el visitante escanea el QR del stand). El organizador solo recibe las de sus ferias."""
     q = select(Empresa).order_by(Empresa.nombre)
     if feria_id:
         q = q.where(Empresa.feria_id == feria_id)
+    if sesion is not None and sesion.role == "organizador":
+        q = q.where(Empresa.feria_id.in_(ids_ferias_de(sesion.ref_id)))
     return db.scalars(q).all()
 
 
@@ -83,20 +99,28 @@ def plantilla():
     )
 
 
-@router.post("/importar", response_model=ImportacionOut, dependencies=[Depends(requiere("organizador"))])
+@router.post("/importar", response_model=ImportacionOut)
 async def importar(
+    sesion: Annotated[Sesion, Depends(requiere("organizador"))],
     db: DB,
     tareas: BackgroundTasks,
     feria_id: Annotated[str, Query(alias="feriaId")],
     archivo: Annotated[UploadFile, File(description="Excel .xlsx con las columnas de la plantilla")],
 ):
     """Crea las empresas válidas en la feria; las filas con errores se informan y no detienen la carga."""
-    feria = obtener_feria(db, feria_id)
+    feria = feria_de(db, feria_id, sesion)
+    libres = exigir_cupo_empresas(db, feria)
     contenido = await archivo.read()
     try:
         resultado = leer(contenido, db, feria.id)
     except ArchivoInvalido as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if len(resultado.validas) > libres:
+        # Las que no caben en el plan se informan como errores, igual que las filas inválidas.
+        for fila in resultado.validas[libres:]:
+            resultado.errores.append((fila.fila, "No se cargó: la feria llegó al límite de empresas de tu plan."))
+        resultado.validas = resultado.validas[:libres]
+        resultado.errores.sort()
 
     fechas = rango_fechas(feria.fecha_inicio, feria.fecha_fin)
     for fila in resultado.validas:
@@ -137,12 +161,13 @@ def obtener(empresa_id: str, db: DB):
     return obtener_empresa(db, empresa_id)
 
 
-@router.post("", response_model=EmpresaOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(requiere("organizador"))])
-def crear(data: EmpresaCrear, db: DB, tareas: BackgroundTasks):
+@router.post("", response_model=EmpresaOut, status_code=status.HTTP_201_CREATED)
+def crear(data: EmpresaCrear, db: DB, tareas: BackgroundTasks, sesion: Annotated[Sesion, Depends(requiere("organizador"))]):
     campos = data.model_dump(exclude={"password"})
     campos["email"] = campos["email"].lower()
     _validar_email_libre(db, campos["email"])
-    feria = obtener_feria(db, data.feria_id)
+    feria = feria_de(db, data.feria_id, sesion)
+    exigir_cupo_empresas(db, feria)
     _validar_ruc_libre(db, feria.id, data.ruc)
     empresa = Empresa(
         **campos,
@@ -169,7 +194,7 @@ def actualizar(
     sesion: Annotated[Sesion, Depends(requiere("organizador", "empresa"))],
 ):
     solo_propio(sesion, "empresa", empresa_id)
-    empresa = obtener_empresa(db, empresa_id)
+    empresa = empresa_de(db, empresa_id, sesion)
 
     datos = cambios.model_dump(exclude_unset=True)
     password = datos.pop("password", None)
@@ -212,7 +237,7 @@ SesionEquipo = Annotated[Sesion, Depends(requiere("organizador", "empresa"))]
 @router.get("/{empresa_id}/usuarios", response_model=list[UsuarioEmpresaOut])
 def listar_usuarios(empresa_id: str, db: DB, sesion: SesionEquipo):
     _administra_equipo(sesion, empresa_id)
-    obtener_empresa(db, empresa_id)
+    empresa_de(db, empresa_id, sesion)
     return db.scalars(
         select(UsuarioEmpresa).where(UsuarioEmpresa.empresa_id == empresa_id).order_by(UsuarioEmpresa.nombre)
     ).all()
@@ -222,7 +247,7 @@ def listar_usuarios(empresa_id: str, db: DB, sesion: SesionEquipo):
 def crear_usuario(empresa_id: str, data: UsuarioEmpresaCrear, db: DB, sesion: SesionEquipo):
     """Agrega un vendedor que entra con su correo y contraseña por POST /auth/empresa."""
     _administra_equipo(sesion, empresa_id)
-    obtener_empresa(db, empresa_id)
+    empresa_de(db, empresa_id, sesion)
     email = data.email.lower()
     correo_libre(db, email)
     usuario = UsuarioEmpresa(
@@ -241,6 +266,7 @@ def crear_usuario(empresa_id: str, data: UsuarioEmpresaCrear, db: DB, sesion: Se
 def eliminar_usuario(empresa_id: str, usuario_id: str, db: DB, sesion: SesionEquipo):
     """Quita al vendedor. Sus leads se conservan con su nombre en registradoPor."""
     _administra_equipo(sesion, empresa_id)
+    empresa_de(db, empresa_id, sesion)
     usuario = db.get(UsuarioEmpresa, usuario_id)
     if not usuario or usuario.empresa_id != empresa_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado")
@@ -249,9 +275,9 @@ def eliminar_usuario(empresa_id: str, usuario_id: str, db: DB, sesion: SesionEqu
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/{empresa_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])
-def eliminar(empresa_id: str, db: DB):
+@router.delete("/{empresa_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar(empresa_id: str, db: DB, sesion: Annotated[Sesion, Depends(requiere("organizador"))]):
     # Sus leads y vistas se borran por ON DELETE CASCADE.
-    db.delete(obtener_empresa(db, empresa_id))
+    db.delete(empresa_de(db, empresa_id, sesion))
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

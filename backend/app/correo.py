@@ -219,6 +219,114 @@ def enviar_acceso_empresa(
     enviar_correo(destino, f"Tu acceso a {settings.mail_from_name} para {feria}", texto, html, imagenes=imagenes)
 
 
+def _vigencia(inicio: date | None, fin: date | None) -> str:
+    if inicio and fin:
+        return f"del {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}"
+    return f"hasta el {fin.strftime('%d/%m/%Y')}" if fin else "sin fecha de fin"
+
+
+def contenido_acceso_organizador(
+    organizador: str, email: str, password: str, plan: str, inicio: date | None, fin: date | None
+) -> tuple[str, str]:
+    url = f"{settings.frontend_url.rstrip('/')}/ingresar?rol=organizador"
+    vigencia = _vigencia(inicio, fin)
+    texto = (
+        f"Bienvenido, {organizador}. Tu plan {plan} está activo ({vigencia}).\n\n"
+        f"Entra a tu panel en {url}\nCorreo: {email}\nContraseña: {password}\n\n"
+        "Te recomendamos cambiar la contraseña en Perfil después de entrar."
+    )
+    html = _plantilla(
+        "acceso_organizador.html",
+        {"organizador": organizador, "email": email, "password": password, "plan": plan, "vigencia": vigencia,
+         "url_ingresar": url, "app": settings.mail_from_name},
+    )
+    return texto, html
+
+
+def enviar_acceso_organizador(
+    destino: str, organizador: str, password: str, plan: str, inicio: date | None, fin: date | None
+) -> None:
+    """Correo al organizador nuevo con su acceso y su plan."""
+    if not settings.smtp_user:
+        print(f"[correo no configurado] Acceso de organizador para {destino} ({organizador}, plan {plan})", flush=True)
+        return
+    texto, html = contenido_acceso_organizador(organizador, destino, password, plan, inicio, fin)
+    enviar_correo(destino, f"Tu cuenta de organizador en {settings.mail_from_name}", texto, html)
+
+
+def _html_simple(titulo: str, parrafos: list[str], boton: tuple[str, str] | None = None) -> str:
+    """Correo sencillo con la marca (para avisos de solicitudes). Los párrafos ya vienen escapados."""
+    fuente = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
+    cuerpo = "".join(f'<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#475269;">{p}</p>' for p in parrafos)
+    if boton:
+        cuerpo += (
+            f'<p style="margin:20px 0 0;"><a href="{html_lib.escape(boton[1])}" style="display:inline-block;background-color:#0a0e1c;'
+            f'color:#ffffff;{fuente}font-size:15px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px;">'
+            f"{html_lib.escape(boton[0])}</a></p>"
+        )
+    return (
+        '<!doctype html><html lang="es"><body style="margin:0;padding:0;background-color:#f8f9fc;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fc;"><tr>'
+        '<td align="center" style="padding:32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="max-width:480px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">'
+        f'<tr><td style="background-color:#0a0e1c;padding:22px 32px;{fuente}font-size:20px;font-weight:700;color:#ffffff;">'
+        'FeriaBot <span style="color:#70ffaf;">Pro</span></td></tr>'
+        '<tr><td style="height:4px;line-height:4px;font-size:0;background-color:#70ffaf;">&nbsp;</td></tr>'
+        f'<tr><td style="padding:32px;{fuente}"><h1 style="margin:0 0 14px;font-size:21px;color:#0a0e1c;">{html_lib.escape(titulo)}</h1>'
+        f"{cuerpo}</td></tr></table></td></tr></table></body></html>"
+    )
+
+
+def _enviar_simple(destino: str, asunto: str, titulo: str, parrafos: list[str], boton: tuple[str, str] | None = None) -> None:
+    if not settings.smtp_user:
+        print(f"[correo no configurado] {asunto} para {destino}", flush=True)
+        return
+    texto = "\n\n".join(re.sub(r"<[^>]+>", "", p) for p in [titulo, *parrafos])
+    if boton:
+        texto += f"\n\n{boton[0]}: {boton[1]}"
+    enviar_correo(destino, asunto, texto, _html_simple(titulo, parrafos, boton))
+
+
+def _usd(monto: float) -> str:
+    return f"${monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def enviar_solicitud_recibida(destino: str, nombre: str, plan: str, periodo: str, monto: float) -> None:
+    """Al cliente: recibimos su solicitud y el comprobante; un encargado confirmará el pago."""
+    e = html_lib.escape
+    _enviar_simple(
+        destino, f"Recibimos tu solicitud del plan {plan}", "Recibimos tu solicitud",
+        [
+            f"Hola, <strong>{e(nombre)}</strong>. Recibimos tu solicitud del plan <strong>{e(plan)}</strong> "
+            f"({e(periodo)}, {e(_usd(monto))}) y tu comprobante de transferencia.",
+            "Un encargado de FeriaBot Pro confirmará el pago y te enviaremos por correo el acceso a tu panel de organizador.",
+        ],
+    )
+
+
+def enviar_aviso_solicitud(destino: str, nombre: str, plan: str, periodo: str, monto: float) -> None:
+    """Al equipo de FeriaBot Pro: hay una solicitud nueva por revisar."""
+    e = html_lib.escape
+    _enviar_simple(
+        destino, f"Nueva solicitud: {nombre} · plan {plan}", "Nueva solicitud por revisar",
+        [f"<strong>{e(nombre)}</strong> solicitó el plan <strong>{e(plan)}</strong> ({e(periodo)}, {e(_usd(monto))}) y subió su comprobante."],
+        ("Revisar solicitudes", f"{settings.frontend_url.rstrip('/')}/admin/solicitudes"),
+    )
+
+
+def enviar_solicitud_rechazada(destino: str, nombre: str, plan: str, motivo: str) -> None:
+    e = html_lib.escape
+    _enviar_simple(
+        destino, f"Tu solicitud del plan {plan}", "No pudimos confirmar tu pago",
+        [
+            f"Hola, <strong>{e(nombre)}</strong>. Revisamos tu solicitud del plan <strong>{e(plan)}</strong> y no pudimos aprobarla.",
+            f"Motivo: {e(motivo)}",
+            "Si crees que es un error, responde a este correo o envía una nueva solicitud con el comprobante correcto.",
+        ],
+        ("Ver planes", f"{settings.frontend_url.rstrip('/')}/#planes"),
+    )
+
+
 def contenido_recordatorio(
     nombre: str,
     codigo: str,

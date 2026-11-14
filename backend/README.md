@@ -53,6 +53,7 @@ suelen cambiarse; el resto tiene un valor por defecto razonable.
 | `JWT_EXPIRE_MINUTES` | `720` | Duración de la sesión (12 h) |
 | `CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | Orígenes del frontend que pueden llamar a la API (lista JSON) |
 | `ADMIN_EMAIL` · `ADMIN_PASSWORD` · `ADMIN_NOMBRE` | `admin@feriabot.com` · `admin123` · `Organización` | Organizador que se crea al arrancar **solo si no existe ninguno** |
+| `SUPERADMIN_EMAIL` · `SUPERADMIN_PASSWORD` · `SUPERADMIN_NOMBRE` | `superadmin@feriabot.com` · `superadmin123` · `FeriaBot Pro` | Super Administrador que se crea al arrancar **solo si no existe ninguno**. Cámbialo en producción |
 | `DEMO_MODE` | `true` | Habilita `POST /demo/reiniciar` |
 | `SMTP_HOST` · `SMTP_PORT` | `smtp.gmail.com` · `587` | Servidor de correo (465 usa SSL directo) |
 | `SMTP_USER` · `SMTP_PASSWORD` | vacío | Cuenta y contraseña de aplicación. Vacío = no se envía nada y los códigos salen en la consola |
@@ -60,6 +61,9 @@ suelen cambiarse; el resto tiene un valor por defecto razonable.
 | `CODIGO_MINUTOS` | `10` | Vigencia de los códigos de verificación |
 | `ZONA_HORARIA_UTC` | `-5` | Diferencia con UTC de la hora local (Ecuador). Las fechas se guardan en UTC; las estadísticas y el Excel de leads usan la hora local |
 | `FRONTEND_URL` | `http://localhost:5173` | Dirección pública del frontend: botones de los correos, `robots.txt` y `sitemap.xml`. Cambiarla al publicar la app |
+| `PAYPHONE_TOKEN` · `PAYPHONE_STORE_ID` | vacíos | Credenciales de PayPhone Developer para el pago con tarjeta. Vacías: solo transferencia (la opción tarjeta sale como «Próximamente») |
+| `PAYPHONE_DEMO` | `false` | Solo desarrollo: sin cuenta de PayPhone, muestra una cajita de prueba (no cobra) y simula la confirmación; el resto del flujo es el real. Si hay credenciales reales, se ignora. **Nunca en producción** |
+| `PAYPHONE_CONFIRM_URL` | `https://paymentbox.payphonetodoesposible.com/api/confirm` | Confirmación de la cajita (solo se cambia para pruebas locales) |
 | `FORZAR_HTTPS` | `false` | En producción, `true`: redirige http → https (respeta `X-Forwarded-Proto` detrás de un proxy) y envía HSTS |
 | `LIMITES_ACTIVOS` | `true` | Límite de intentos por IP contra spam y fuerza bruta (ver «Protección contra spam»). `false` solo para pruebas |
 | `POLITICA_VERSION` | `2026-10` | Versión vigente de la política de privacidad. Subirla cuando cambien los textos legales |
@@ -113,6 +117,77 @@ app/
   para la analítica sin cookies, `VITE_ANALITICA` (`umami` o `plausible`) y `VITE_ANALITICA_ID`.
 - **Ficha de Google (Business Profile)**: se crea en https://business.google.com con el nombre, la dirección y el
   sitio web; no depende del código.
+
+## Super Administrador y planes
+
+FeriaBot Pro (la empresa dueña de la plataforma) entra como **Super Administrador** en
+`/ingresar?rol=superadmin` (`POST /auth/superadmin`). Desde su panel:
+
+- Crea **organizadores** (clientes) con su ficha: nombre o razón social, **RUC** (obligatorio y único), contacto,
+  teléfono, dirección, ciudad, sitio web y notas internas que el organizador no ve. Al crearlo se le envía su acceso
+  por correo.
+- Les asigna un **plan** con **vigencia** (desde / hasta), lo renueva, lo cambia, suspende o reactiva la cuenta.
+- Ve el **uso** de cada organizador (ferias, empresas y visitantes frente a su límite), sin datos personales de los
+  visitantes ni leads.
+- Agrega a otras personas de su equipo como Super Administradores.
+
+Valores iniciales (editables):
+
+| Plan | Ferias en curso o próximas a la vez | Empresas por feria | Visitantes por feria |
+| --- | --- | --- | --- |
+| Básico | 2 | 200 | 1.000 |
+| Profesional | 5 | 200 | 5.000 |
+| Premium | 20 | 400 | 10.000 |
+
+- Las ferias **finalizadas no cuentan**: quedan como historial.
+- **Vencida** (o aún no empieza): el organizador entra y ve sus datos, pero no crea ferias, empresas ni
+  inscripciones; el registro público a sus ferias se cierra. **Suspendida**: no puede ingresar.
+- **Precios y límites** están en la tabla `planes` y el Super Administrador los cambia en *Planes* (`/admin/planes`).
+  Al arrancar se crean los 3 planes con precios de ejemplo ($49, $99 y $199 al mes). Bajar un límite rige de
+  inmediato y no borra nada. Los organizadores que ya existían pasan a Premium por un año y sus ferias quedan a su
+  nombre (migración automática).
+- Cada organizador ve y modifica **solo sus ferias** (y sus empresas, visitantes, leads y vistas); las de otro
+  responden 404. El listado público de ferias sigue mostrando todas.
+- **Contratar desde la página principal** (`/#planes` → `/contratar`): por ahora con **transferencia**. El cliente sube
+  el comprobante, la solicitud queda pendiente y un encargado (Super Administrador) la aprueba en *Solicitudes*: se
+  crea su cuenta y le llega su acceso. El pago con tarjeta (pasarela) queda para después.
+- El Super Administrador también **ve y corrige las ferias** de cualquier organizador (editar, eliminar, ver sus
+  empresas y visitantes) y tiene la lista de **todos los visitantes** con su ficha, sus ferias y su historial de
+  consentimiento. La política de privacidad lo informa.
+- **Registros (LOPDP)**: `auditoria` guarda cada acción del equipo (consultas de datos personales, cambios en ferias,
+  organizadores, planes, solicitudes, borrados) con quién, cuándo e IP; `aceptaciones_politica` guarda cada aceptación
+  de la política (versión, origen: registro web, entrada de la feria —con quién la marcó— o contratación, IP y
+  navegador). Al migrar se copian las aceptaciones que ya tenían los visitantes (origen `historico`).
+- **Pago con tarjeta (PayPhone, Cajita de Pagos)**: `POST /solicitudes` con `metodoPago: "tarjeta"` devuelve `cajita`
+  (token, storeId, monto en centavos, `clientTransactionId` = id de la solicitud) y el frontend dibuja la cajita de
+  PayPhone **dentro de /contratar** (`PPaymentButtonBox`). Al pagar, PayPhone lleva al cliente a la **URL de Respuesta**
+  de la aplicación en Payphone Developer —configúrala como `FRONTEND_URL/contratar/resultado`— y el frontend llama a
+  `POST /pagos/payphone/confirmar`, que confirma con `paymentbox…/api/confirm` (en los 5 minutos siguientes o PayPhone
+  revierte el cobro). Si está aprobado y el monto coincide, la cuenta se crea sola (revisado por «PayPhone
+  (automático)»). Es idempotente y bloquea la fila. Requisitos: cuenta en Payphone Business y aplicación WEB en Payphone
+  Developer con tu **dominio** (en desarrollo vale `http://localhost`; en producción, HTTPS). El token viaja al navegador
+  (así lo pide la cajita) y solo funciona desde ese dominio. Todo el monto se envía como `amountWithoutTax`: si debes
+  desglosar IVA, consúltalo con tu contador.
+- Datos de ejemplo: `py -m app.datos_prueba --organizadores` (uno por plan y estado; contraseña `organizador123`).
+
+| Ruta | Quién | Qué hace |
+| --- | --- | --- |
+| `GET /planes` | Público | Planes visibles con sus precios (para la página principal) |
+| `GET /admin/planes` · `PATCH /admin/planes/:id` | Super admin | Planes con cuántos clientes tiene cada uno; cambia precios, límites, descripción o visibilidad |
+| `GET /admin/resumen` | Super admin | Cuentas por estado y plan, ingreso mensual estimado, uso de la plataforma |
+| `GET/POST /admin/organizadores` · `PATCH/DELETE /admin/organizadores/:id` | Super admin | Organizadores con su plan y uso. Solo se elimina uno sin ferias |
+| `GET/POST /admin/usuarios` · `DELETE /admin/usuarios/:id` | Super admin | Equipo de FeriaBot Pro (no puede eliminarse a sí mismo) |
+| `GET /mi-plan` | Organizador | Su ficha, plan, vigencia, límites y uso |
+| `GET /admin/ferias` | Super admin | Todas las ferias con su organizador (sin portada). Editar / eliminar con `PATCH`/`DELETE /ferias/:id` (queda registrado) |
+| `GET /admin/visitantes/pagina` · `GET /admin/visitantes/:id` | Super admin | Todos los visitantes; la ficha trae sus ferias y sus aceptaciones. Cada consulta queda registrada |
+| `GET /admin/actividad` · `GET /admin/aceptaciones` | Super admin | Registro de actividad del equipo y de aceptaciones de la política (paginados, con búsqueda y filtro) |
+| `GET /pago/transferencia` · `PUT /admin/pago/transferencia` | Público · Super admin | Cuenta bancaria para pagar por transferencia |
+| `GET /pago/metodos` | Público | `{ transferencia, tarjeta }`: formas de pago activas |
+| `POST /pagos/payphone/confirmar` | Público | `{ id, clientTransactionId }` al volver de PayPhone: confirma el pago y crea la cuenta si está aprobado |
+| `POST /solicitudes` | Público | Contratar un plan: datos, RUC, periodo (`mensual`/`anual`) y comprobante (imagen o PDF, máx. 3,5 MB). Campo trampa y 5 por hora por IP. `metodoPago: "tarjeta"` responde 400 (pasarela pendiente) |
+| `GET /admin/solicitudes` · `GET /admin/solicitudes/pendientes` · `GET /admin/solicitudes/:id/comprobante` | Super admin | Solicitudes (sin el archivo), cuántas pendientes y el comprobante |
+| `POST /admin/solicitudes/:id/aprobar` · `POST /admin/solicitudes/:id/rechazar` | Super admin | Aprobar crea la cuenta (plan por 1 mes o 1 año desde hoy, contraseña temporal por correo); rechazar envía el motivo al cliente |
+| `GET /ferias?mias=true` | Organizador | Solo sus ferias (su panel) |
 
 ## Ferias
 

@@ -8,7 +8,7 @@ from ..seed import reiniciar_demo
 router = APIRouter(prefix="/demo", tags=["demo"])
 
 
-@router.post("/reiniciar", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("organizador"))])
+@router.post("/reiniciar", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere("superadmin"))])
 def reiniciar(db: DB):
     """Borra ferias, empresas, visitantes, leads y vistas y vuelve a cargar los datos de demostración."""
     if not settings.demo_mode:

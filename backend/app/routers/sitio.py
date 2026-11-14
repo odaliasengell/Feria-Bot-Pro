@@ -19,6 +19,7 @@ PAGINAS = [
     ("/", "weekly", "1.0"),
     ("/ferias", "daily", "0.9"),
     ("/registro", "weekly", "0.8"),
+    ("/contratar", "monthly", "0.7"),
     ("/nosotros", "monthly", "0.6"),
     ("/privacidad", "yearly", "0.3"),
     ("/tratamiento-datos", "yearly", "0.3"),

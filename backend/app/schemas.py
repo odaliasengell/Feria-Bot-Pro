@@ -9,7 +9,7 @@ from pydantic.alias_generators import to_camel
 
 from .utils import error_ruc, normalizar_ruc
 
-Role = Literal["organizador", "visitante", "empresa"]
+Role = Literal["organizador", "visitante", "empresa", "superadmin"]
 Calificacion = Literal["interesado", "visita", "correo", "no_interesado"]
 EstadoLead = Literal["nuevo", "contactado", "cotizado", "cerrado"]
 PropositoVisitante = Literal["registro", "ingreso"]
@@ -90,7 +90,7 @@ class EnviarCodigoOut(CamelModel):
 
 class RecuperarEnviar(CamelModel):
     email: EmailStr
-    role: Literal["empresa", "organizador"]
+    role: Literal["empresa", "organizador", "superadmin"]
 
 
 class RecuperarCambiar(RecuperarEnviar):
@@ -545,6 +545,383 @@ class DocumentoLegal(CamelModel):
     actualizado: date
     responsable: ResponsableLegal
     secciones: list[SeccionLegal]
+
+
+
+# ---------- Planes y organizadores (Super Administrador) ----------
+
+PlanId = Literal["basico", "profesional", "premium"]
+EstadoCuenta = Literal["activa", "por_vencer", "vencida", "programada", "suspendida"]
+
+
+class PlanOut(CamelModel):
+    id: PlanId
+    nombre: str
+    descripcion: str = ""
+    precio_mensual: float
+    precio_anual: float
+    ferias: int
+    empresas_por_feria: int
+    visitantes_por_feria: int
+    publico: bool = True
+
+
+class PlanAdminOut(PlanOut):
+    # Organizadores con este plan.
+    clientes: int = 0
+    actualizado_en: Fecha | None = None
+
+
+class PlanActualizar(CamelModel):
+    nombre: str | None = Field(default=None, min_length=2, max_length=60)
+    descripcion: str | None = Field(default=None, max_length=300)
+    precio_mensual: float | None = Field(default=None, ge=0, le=100000)
+    precio_anual: float | None = Field(default=None, ge=0, le=1000000)
+    ferias: int | None = Field(default=None, ge=1, le=1000)
+    empresas_por_feria: int | None = Field(default=None, ge=1, le=100000)
+    visitantes_por_feria: int | None = Field(default=None, ge=1, le=10000000)
+    publico: bool | None = None
+
+
+class OrganizadorFicha(CamelModel):
+    """Datos del cliente que el Super Administrador llena."""
+
+    nombre: str = Field(min_length=2, max_length=150)
+    ruc: Ruc
+    contacto_nombre: str = Field(default="", max_length=150)
+    telefono: str = Field(default="", max_length=40)
+    direccion: str = Field(default="", max_length=255)
+    ciudad: str = Field(default="", max_length=100)
+    sitio_web: str | None = Field(default=None, max_length=255)
+    notas: str = Field(default="", max_length=2000)
+
+
+class OrganizadorCrear(OrganizadorFicha):
+    email: EmailStr = Field(max_length=150)
+    password: Password
+    plan: PlanId
+    plan_inicio: date
+    plan_fin: date
+    activo: bool = True
+
+    @model_validator(mode="after")
+    def _fechas(self):
+        if self.plan_fin < self.plan_inicio:
+            raise ValueError("La fecha de fin del plan no puede ser anterior a la de inicio.")
+        return self
+
+
+class OrganizadorActualizar(CamelModel):
+    nombre: str | None = Field(default=None, min_length=2, max_length=150)
+    ruc: Ruc | None = None
+    contacto_nombre: str | None = Field(default=None, max_length=150)
+    telefono: str | None = Field(default=None, max_length=40)
+    direccion: str | None = Field(default=None, max_length=255)
+    ciudad: str | None = Field(default=None, max_length=100)
+    sitio_web: str | None = Field(default=None, max_length=255)
+    notas: str | None = Field(default=None, max_length=2000)
+    email: EmailStr | None = Field(default=None, max_length=150)
+    password: Password | None = None
+    plan: PlanId | None = None
+    plan_inicio: date | None = None
+    plan_fin: date | None = None
+    activo: bool | None = None
+
+
+class FeriaUso(CamelModel):
+    """Uso de una feria frente al plan: solo cifras, sin datos de visitantes ni de leads."""
+
+    id: str
+    nombre: str
+    estado: EstadoFeria
+    fecha_inicio: date
+    fecha_fin: date
+    empresas: int
+    visitantes: int
+
+
+class UsoPlan(CamelModel):
+    ferias_activas: int
+    ferias_total: int
+    ferias: list[FeriaUso]
+
+
+class OrganizadorOut(CamelModel):
+    id: str
+    nombre: str
+    ruc: str | None = None
+    contacto_nombre: str
+    telefono: str
+    direccion: str
+    ciudad: str
+    sitio_web: str | None = None
+    email: str
+    plan: PlanId
+    plan_inicio: date | None = None
+    plan_fin: date | None = None
+    activo: bool
+    # Calculado con app.planes.estado_cuenta.
+    estado: EstadoCuenta = "activa"
+    creado_en: Fecha
+
+
+class OrganizadorAdminOut(OrganizadorOut):
+    notas: str = ""
+    uso: UsoPlan
+
+    @field_validator("notas", mode="before")
+    @classmethod
+    def _notas(cls, v: str | None) -> str:
+        return v or ""
+
+
+class MiPlanOut(CamelModel):
+    """Lo que el organizador ve de su cuenta: su ficha, su plan, sus límites y cuánto usa."""
+
+    organizador: OrganizadorOut
+    plan: PlanOut
+    uso: UsoPlan
+    puede_operar: bool
+    dias_restantes: int | None = None
+
+
+class ResumenAdmin(CamelModel):
+    organizadores: int
+    por_estado: dict[str, int]
+    por_plan: dict[str, int]
+    ferias_activas: int
+    empresas: int
+    inscripciones: int
+    # Suma del precio mensual de las cuentas con el plan vigente (activas y por vencer).
+    ingreso_mensual: float = 0
+    solicitudes_pendientes: int = 0
+    por_vencer: list[OrganizadorOut]
+
+
+class SuperAdminOut(CamelModel):
+    id: str
+    nombre: str
+    email: str
+    creado_en: Fecha
+
+
+class SuperAdminCrear(CamelModel):
+    nombre: str = Field(min_length=2, max_length=150)
+    email: EmailStr = Field(max_length=150)
+    password: Password
+
+
+
+
+# ---------- Contratar un plan (solicitudes y pago por transferencia) ----------
+
+Periodo = Literal["mensual", "anual"]
+MetodoPago = Literal["transferencia", "tarjeta"]
+EstadoSolicitud = Literal["pendiente", "pago_pendiente", "aprobada", "rechazada"]
+MAX_COMPROBANTE = 5_000_000
+_TIPOS_COMPROBANTE = ("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,", "data:application/pdf;base64,")
+
+
+def _validar_comprobante(v: str | None) -> str | None:
+    if not v:
+        return None
+    if len(v) > MAX_COMPROBANTE:
+        raise ValueError("El comprobante pesa demasiado (máximo 3,5 MB).")
+    if not v.startswith(_TIPOS_COMPROBANTE):
+        raise ValueError("El comprobante debe ser una imagen (JPG, PNG o WebP) o un PDF.")
+    return v
+
+
+class SolicitudCrear(CamelModel):
+    plan_id: PlanId
+    periodo: Periodo
+    metodo_pago: MetodoPago = "transferencia"
+    nombre: str = Field(min_length=2, max_length=150)
+    ruc: Ruc
+    contacto_nombre: str = Field(min_length=2, max_length=150)
+    email: EmailStr = Field(max_length=150)
+    telefono: str = Field(min_length=7, max_length=40)
+    ciudad: str = Field(default="", max_length=100)
+    mensaje: str = Field(default="", max_length=1000)
+    referencia: str = Field(default="", max_length=100)
+    comprobante: Annotated[str | None, BeforeValidator(_validar_comprobante)] = None
+    acepta_politica: bool = False
+    # Campo trampa (oculto en el formulario).
+    empresa_web: str = Field(default="", max_length=200)
+
+
+class SolicitudCreadaOut(CamelModel):
+    id: str
+    plan_nombre: str
+    periodo: Periodo
+    monto: float
+    email: str
+    # Pago con tarjeta: opciones de la Cajita de Pagos de PayPhone (`new PPaymentButtonBox(cajita)`).
+    cajita: dict | None = None
+
+
+class MetodosPagoOut(CamelModel):
+    transferencia: bool
+    tarjeta: bool
+    # La tarjeta funciona en modo demostración (sin PayPhone real).
+    demo: bool = False
+
+
+class ConfirmarPago(CamelModel):
+    """Lo que PayPhone envía en la URL de respuesta."""
+
+    id: int
+    client_transaction_id: str = Field(min_length=1, max_length=50)
+
+
+class PagoDemo(CamelModel):
+    """Modo demostración: lo que «enviaría» la cajita de prueba (solo los últimos dígitos, nunca la tarjeta)."""
+
+    client_transaction_id: str = Field(min_length=1, max_length=50)
+    aprobado: bool = True
+    marca: str = Field(default="Visa", max_length=20)
+    ultimos: str = Field(default="4242", pattern=r"^\d{4}$")
+
+
+class PagoDemoOut(CamelModel):
+    id: int
+    client_transaction_id: str
+
+
+class ResultadoPago(CamelModel):
+    estado: EstadoSolicitud
+    plan_nombre: str
+    periodo: Periodo
+    monto: float
+    email: str
+    mensaje: str
+    tarjeta: str = ""
+    autorizacion: str = ""
+
+
+class SolicitudOut(CamelModel):
+    id: str
+    plan_id: PlanId
+    plan_nombre: str = ""
+    periodo: Periodo
+    monto: float
+    metodo_pago: MetodoPago
+    nombre: str
+    ruc: str
+    contacto_nombre: str
+    email: str
+    telefono: str
+    ciudad: str
+    mensaje: str
+    referencia: str
+    tiene_comprobante: bool = False
+    transaccion_id: str = ""
+    autorizacion: str = ""
+    tarjeta: str = ""
+    estado: EstadoSolicitud
+    motivo_rechazo: str = ""
+    revisado_por: str | None = None
+    revisado_en: Fecha | None = None
+    organizador_id: str | None = None
+    creado_en: Fecha
+
+
+class ComprobanteOut(CamelModel):
+    comprobante: str | None
+
+
+class SolicitudRechazar(CamelModel):
+    motivo: str = Field(min_length=5, max_length=500)
+
+
+class DatosTransferencia(CamelModel):
+    """Cuenta bancaria donde los clientes transfieren (la edita el Super Administrador)."""
+
+    banco: str = Field(default="", max_length=100)
+    tipo_cuenta: str = Field(default="", max_length=40)
+    numero_cuenta: str = Field(default="", max_length=40)
+    titular: str = Field(default="", max_length=150)
+    identificacion: str = Field(default="", max_length=20)
+    correo: str = Field(default="", max_length=150)
+    instrucciones: str = Field(default="", max_length=500)
+
+
+
+
+# ---------- Super Administrador: ferias, visitantes y registros ----------
+
+
+class FeriaAdminOut(FeriaOut):
+    organizador_id: str
+    organizador_nombre: str
+
+
+class VisitanteAdminFila(VisitanteOut):
+    ferias: int = 0
+
+
+class PaginaVisitantesAdmin(CamelModel):
+    items: list[VisitanteAdminFila]
+    total: int
+    pagina: int
+    por_pagina: int
+
+
+class InscripcionAdmin(CamelModel):
+    feria_id: str
+    feria_nombre: str
+    organizador_nombre: str
+    estado: EstadoFeria
+    fecha_inicio: date
+    fecha_fin: date
+    inscrito_en: Fecha
+    asistio_en: Fecha | None = None
+    leads: int = 0
+
+
+class AceptacionOut(CamelModel):
+    id: str
+    tipo: str
+    titular_id: str
+    nombre: str
+    email: str
+    version: str
+    origen: str
+    registrado_por: str
+    ip: str
+    user_agent: str
+    creado_en: Fecha
+
+
+class VisitanteAdminDetalle(VisitanteOut):
+    inscripciones: list[InscripcionAdmin]
+    aceptaciones: list[AceptacionOut]
+
+
+class ActividadOut(CamelModel):
+    id: str
+    actor_rol: str
+    actor_nombre: str
+    accion: str
+    descripcion: str
+    entidad: str
+    entidad_id: str
+    ip: str
+    creado_en: Fecha
+
+
+class PaginaActividad(CamelModel):
+    items: list[ActividadOut]
+    total: int
+    pagina: int
+    por_pagina: int
+
+
+class PaginaAceptaciones(CamelModel):
+    items: list[AceptacionOut]
+    total: int
+    pagina: int
+    por_pagina: int
 
 
 EstadisticasOut.model_rebuild()

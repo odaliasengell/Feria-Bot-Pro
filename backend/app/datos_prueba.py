@@ -9,6 +9,7 @@ Uso:
     py -m app.datos_prueba --reset     # borra los datos de prueba y los vuelve a cargar
     py -m app.datos_prueba --borrar    # solo borra los datos de prueba
     py -m app.datos_prueba --visitantes 500   # cuántos visitantes crear (por defecto 300)
+    py -m app.datos_prueba --organizadores    # solo los 5 organizadores de ejemplo (uno por plan y estado)
 """
 
 import random
@@ -21,9 +22,10 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
-from .models import Empresa, Feria, Inscripcion, Lead, UsuarioEmpresa, Visitante, VistaFicha
+from .planes import crear_planes_iniciales
+from .models import Empresa, Feria, Inscripcion, Lead, Organizador, UsuarioEmpresa, Visitante, VistaFicha
 from .security import hash_password
-from .seed import crear_organizador_inicial
+from .seed import crear_organizador_inicial, crear_superadmin_inicial, organizador_principal
 from .utils import ruc_persona_natural
 from .utils import ahora as ahora_utc
 
@@ -31,6 +33,7 @@ PREFIJO = "pr-"
 DOMINIO = "example.com"
 PASSWORD_EMPRESAS = "empresa123"
 PASSWORD_VENDEDORES = "vendedor123"
+PASSWORD_ORGANIZADORES = "organizador123"
 ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 NOMBRES = [
@@ -126,8 +129,33 @@ def _momento(rnd: random.Random, dia: date) -> datetime:
     return datetime.combine(dia, time(14, 0)) + timedelta(minutes=rnd.randint(0, 540))
 
 
+ORGANIZADORES = [
+    # (clave, nombre, ciudad, plan, días desde el inicio del plan, días hasta el fin, activo)
+    ("eventos-andes", "Eventos Andes Cía. Ltda.", "Quito", "basico", 40, 325, True),
+    ("expo-pacifico", "Expo Pacífico S.A.", "Guayaquil", "profesional", 200, 10, True),
+    ("ferias-austro", "Ferias del Austro", "Cuenca", "premium", 100, 265, True),
+    ("conecta-manta", "Conecta Manta Eventos", "Manta", "basico", 400, -35, True),
+    ("sierra-norte", "Sierra Norte Producciones", "Ibarra", "profesional", 60, 300, False),
+]
+
+
+def _organizadores_de_prueba(db: Session, rnd: random.Random, hoy: date) -> int:
+    pw = hash_password(PASSWORD_ORGANIZADORES)
+    for clave, nombre, ciudad, plan, desde, hasta, activo in ORGANIZADORES:
+        contacto = f"{rnd.choice(NOMBRES)} {rnd.choice(APELLIDOS)}"
+        db.add(Organizador(
+            id=f"{PREFIJO}org-{clave}", nombre=nombre, ruc=f"{rnd.choice(['17', '09', '01', '13', '10'])}9{rnd.randint(1000000, 9999999)}001",
+            contacto_nombre=contacto, telefono=f"+593 9{rnd.randint(2, 9)} {rnd.randint(100, 999)} {rnd.randint(1000, 9999)}",
+            direccion=f"Av. Principal {rnd.randint(100, 999)}", ciudad=ciudad, sitio_web=f"https://{_slug(nombre)[:20]}.ec",
+            notas="Cliente de prueba.", email=f"{clave}@{DOMINIO}", password_hash=pw, plan=plan,
+            plan_inicio=hoy - timedelta(days=desde), plan_fin=hoy + timedelta(days=hasta), activo=activo,
+        ))
+    db.flush()
+    return len(ORGANIZADORES)
+
+
 def borrar(db: Session) -> None:
-    for modelo in (VistaFicha, Lead, Inscripcion, UsuarioEmpresa, Visitante, Empresa, Feria):
+    for modelo in (VistaFicha, Lead, Inscripcion, UsuarioEmpresa, Visitante, Empresa, Feria, Organizador):
         db.execute(delete(modelo).where(modelo.id.like(f"{PREFIJO}%")))
     db.commit()
 
@@ -139,13 +167,17 @@ def cargar(db: Session, n_visitantes: int = 300) -> dict[str, int]:
     pw_empresa = hash_password(PASSWORD_EMPRESAS)
     pw_vendedor = hash_password(PASSWORD_VENDEDORES)
     codigos_usados = set(db.scalars(select(Visitante.codigo)))
-    total = dict(ferias=0, empresas=0, vendedores=0, visitantes=0, inscripciones=0, asistencias=0, leads=0, vistas=0)
+    total = dict(organizadores=0, ferias=0, empresas=0, vendedores=0, visitantes=0, inscripciones=0, asistencias=0, leads=0, vistas=0)
 
-    # --- Ferias
+    # --- Organizadores de ejemplo (uno por plan y estado) para el panel del Super Administrador.
+    total["organizadores"] = _organizadores_de_prueba(db, rnd, hoy)
+    dueno = organizador_principal(db)
+
+    # --- Ferias (del organizador principal, el de ADMIN_EMAIL)
     ferias: dict[str, Feria] = {}
     for clave, nombre, lugar, desc, inicio, dias, abierta, aforo in FERIAS:
         f = Feria(
-            id=f"{PREFIJO}feria-{clave}", nombre=nombre, lugar=lugar, descripcion=desc,
+            id=f"{PREFIJO}feria-{clave}", organizador_id=dueno.id, nombre=nombre, lugar=lugar, descripcion=desc,
             fecha_inicio=hoy + timedelta(days=inicio), fecha_fin=hoy + timedelta(days=inicio + dias - 1),
             inscripciones_abiertas=abierta, aforo=aforo, portada_alt="",
             # Marcado como enviado: así el recordatorio automático no manda correos a los visitantes de prueba.
@@ -268,7 +300,18 @@ def main() -> None:
     if "--visitantes" in sys.argv:
         n = int(sys.argv[sys.argv.index("--visitantes") + 1])
     with SessionLocal() as db:
+        crear_planes_iniciales(db)
+        crear_superadmin_inicial(db)
         crear_organizador_inicial(db)
+        if "--organizadores" in sys.argv:
+            # Solo los organizadores de ejemplo (sin tocar ferias ni visitantes de prueba).
+            if db.scalar(select(Organizador.id).where(Organizador.id.like(f"{PREFIJO}org-%")).limit(1)):
+                print("Los organizadores de ejemplo ya están cargados.")
+            else:
+                n = _organizadores_de_prueba(db, random.Random(7), date.today())
+                db.commit()
+                print(f"{n} organizadores de ejemplo: <clave>@{DOMINIO} / {PASSWORD_ORGANIZADORES}")
+            return
         hay = db.scalar(select(Feria.id).where(Feria.id.like(f"{PREFIJO}%")).limit(1))
         if "--borrar" in sys.argv or "--reset" in sys.argv:
             borrar(db)
@@ -287,6 +330,7 @@ def main() -> None:
         )
         print(f"Empresas: <correo>@{DOMINIO} / {PASSWORD_EMPRESAS} (p. ej. nubeandina.tec-25@{DOMINIO})")
         print(f"Vendedores: vendedor1.<empresa>.<feria>@{DOMINIO} / {PASSWORD_VENDEDORES}")
+        print(f"Organizadores de ejemplo: <clave>@{DOMINIO} / {PASSWORD_ORGANIZADORES} (p. ej. eventos-andes@{DOMINIO})")
         if ejemplo:
             print(f"Visitante con historial: código {ejemplo.codigo} ({ejemplo.nombre})")
 

@@ -13,8 +13,8 @@ from ..paginacion import BuscarParam, PaginaParam, PorPaginaParam, coincide, rec
 from ..schemas import Calificacion, EmpresaOpcion, EstadoLead, LeadDetalleOut, LeadEstado, LeadGuardar, LeadOut, PaginaLeads, Sesion
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
-from .empresas import obtener_empresa
-from .ferias import exigir_inscripcion
+from .empresas import empresa_de
+from .ferias import exigir_inscripcion, ids_ferias_de
 from .visitantes import obtener_visitante
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -35,6 +35,9 @@ def consulta_leads(
     """Leads con empresa y visitante, con el alcance de la sesión. La usan el listado y la exportación."""
     empresa_id, visitante_id = alcance(sesion, empresa_id, visitante_id)
     q = select(Lead).options(selectinload(Lead.empresa), selectinload(Lead.visitante)).order_by(Lead.actualizado_en.desc())
+    if sesion.role == "organizador":
+        # Solo los leads de las empresas de sus ferias.
+        q = q.where(Lead.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id.in_(ids_ferias_de(sesion.ref_id)))))
     if empresa_id:
         q = q.where(Lead.empresa_id == empresa_id)
     if visitante_id:
@@ -139,7 +142,7 @@ def cambiar_estado(
 ):
     """Seguimiento del contacto: nuevo, contactado, cotizado o cerrado."""
     lead = db.get(Lead, lead_id)
-    if not lead:
+    if not lead or (sesion.role == "organizador" and lead.empresa.feria.organizador_id != sesion.ref_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead no encontrado")
     solo_propio(sesion, "empresa", lead.empresa_id)
     if lead.estado != data.estado:
@@ -157,6 +160,7 @@ def obtener(
     sesion: Annotated[Sesion, Depends(requiere("organizador", "empresa"))],
 ):
     solo_propio(sesion, "empresa", empresa_id)
+    empresa_de(db, empresa_id, sesion)
     lead = db.scalar(select(Lead).where(Lead.empresa_id == empresa_id, Lead.visitante_id == visitante_id))
     if not lead:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead no encontrado")
@@ -171,7 +175,7 @@ def guardar(
 ):
     """La empresa guarda (o actualiza) la calificación de un visitante escaneado."""
     solo_propio(sesion, "empresa", data.empresa_id)
-    empresa = obtener_empresa(db, data.empresa_id)
+    empresa = empresa_de(db, data.empresa_id, sesion)
     obtener_visitante(db, data.visitante_id)
     exigir_inscripcion(db, empresa.feria, data.visitante_id)
 

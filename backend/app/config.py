@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     admin_password: str = "admin123"
     admin_nombre: str = "Organización"
 
+    # Super Administrador inicial (FeriaBot Pro): se crea al arrancar si no hay ninguno.
+    superadmin_email: str = "superadmin@feriabot.com"
+    superadmin_password: str = "superadmin123"
+    superadmin_nombre: str = "FeriaBot Pro"
+
     demo_mode: bool = True
 
     # Correo saliente (Gmail: smtp.gmail.com, 587 y una contraseña de aplicación).
@@ -34,12 +39,21 @@ class Settings(BaseSettings):
     # Límite de intentos por IP en inicios de sesión, códigos por correo y registro (anti spam).
     limites_activos: bool = True
 
+    # PayPhone (pago con tarjeta). Sin token y store id, el pago con tarjeta queda desactivado.
+    payphone_token: str = ""
+    payphone_store_id: str = ""
+    # Modo demostración (solo desarrollo): sin cuenta de PayPhone, una cajita de prueba simula el pago y el backend
+    # simula la confirmación; el resto del flujo es el real. Nunca activarlo en producción.
+    payphone_demo: bool = False
+    # Confirmación de la Cajita de Pagos (solo se cambia para pruebas locales).
+    payphone_confirm_url: str = "https://paymentbox.payphonetodoesposible.com/api/confirm"
+
     # Dirección del frontend, para los enlaces de los correos (botón "Entrar") y el sitemap.
     frontend_url: str = "http://localhost:5173"
 
     # Versión vigente de la política de privacidad y tratamiento de datos. Al cambiar el texto de la
     # política se sube la versión; cada visitante guarda la versión que aceptó y cuándo.
-    politica_version: str = "2026-10"
+    politica_version: str = "2026-11"
 
     # Responsable del tratamiento que aparece en los textos legales (GET /legal/...).
     responsable_nombre: str = "FeriaBot Pro"

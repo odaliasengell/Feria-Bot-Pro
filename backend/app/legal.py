@@ -94,6 +94,9 @@ def _privacidad() -> dict:
                     "empresa y ciudad. Si no presentas tu QR, la empresa no recibe tus datos.",
                     "Con proveedores que nos prestan servicios técnicos (alojamiento del servidor y envío de correos), "
                     "que actúan como encargados del tratamiento y solo pueden usar los datos según nuestras instrucciones.",
+                    "Con el equipo de administración de FeriaBot Pro, que puede consultar y corregir los datos de las ferias, "
+                    "empresas y visitantes para administrar la plataforma, dar soporte, atender tus solicitudes y prevenir "
+                    "abusos. Ese acceso es personal, está limitado al equipo autorizado y cada consulta o cambio queda registrado.",
                     "Con autoridades, cuando una ley u orden judicial lo exija.",
                 ],
             },
@@ -235,6 +238,8 @@ def _tratamiento() -> dict:
                 "parrafos": [
                     f"Al marcar la casilla de aceptación declaras que leíste la Política de privacidad y este documento, y "
                     f"autorizas a {r} a tratar tus datos personales para las finalidades indicadas.",
+                    "Guardamos constancia de cada aceptación: la fecha y hora, la versión de la política, desde dónde se "
+                    "aceptó (registro, inscripción en la entrada de la feria o contratación de un plan) y la dirección IP.",
                 ],
             },
         ],

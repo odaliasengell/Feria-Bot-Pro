@@ -6,7 +6,7 @@ from sqlalchemy import select
 from ..config import settings
 from ..database import DB
 from ..limites import limite
-from ..models import Empresa, Organizador, UsuarioEmpresa, Visitante
+from ..models import Empresa, Organizador, SuperAdmin, UsuarioEmpresa, Visitante
 from ..schemas import (
     CambiarCorreo,
     CambiarPassword,
@@ -34,7 +34,9 @@ def _token(sesion: Sesion) -> TokenOut:
     return TokenOut(token=crear_token(sesion), session=sesion)
 
 
-Cuenta = Empresa | Organizador | UsuarioEmpresa
+Cuenta = Empresa | Organizador | UsuarioEmpresa | SuperAdmin
+
+CUENTA_SUSPENDIDA = "Tu cuenta está suspendida. Comunícate con FeriaBot Pro para reactivarla."
 
 
 def _sesion_de(cuenta: Cuenta) -> Sesion:
@@ -47,7 +49,9 @@ def _sesion_de(cuenta: Cuenta) -> Sesion:
             usuario_id=cuenta.id,
             usuario_nombre=cuenta.nombre,
         )
-    role = "empresa" if isinstance(cuenta, Empresa) else "organizador"
+    if isinstance(cuenta, Organizador) and not cuenta.activo:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, CUENTA_SUSPENDIDA)
+    role = "empresa" if isinstance(cuenta, Empresa) else "superadmin" if isinstance(cuenta, SuperAdmin) else "organizador"
     return Sesion(role=role, ref_id=cuenta.id, nombre=cuenta.nombre)
 
 
@@ -60,9 +64,18 @@ SPAM = "No se pudo completar la solicitud."
 @router.post("/organizador", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_organizador(data: LoginPassword, db: DB):
     org = db.scalar(select(Organizador).where(Organizador.email == data.email.lower()))
-    if not org or not verificar_password(data.password, org.password_hash):
+    if not org or not org.password_hash or not verificar_password(data.password, org.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
-    return _token(Sesion(role="organizador", ref_id=org.id, nombre=org.nombre))
+    return _token(_sesion_de(org))
+
+
+@router.post("/superadmin", response_model=TokenOut, dependencies=LIMITE_LOGIN)
+def login_superadmin(data: LoginPassword, db: DB):
+    """Ingreso del equipo de FeriaBot Pro (Super Administrador)."""
+    sa = db.scalar(select(SuperAdmin).where(SuperAdmin.email == data.email.lower()))
+    if not sa or not verificar_password(data.password, sa.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
+    return _token(_sesion_de(sa))
 
 
 @router.post("/empresa", response_model=TokenOut, dependencies=LIMITE_LOGIN)
@@ -125,6 +138,8 @@ def login_visitante_correo(data: LoginVisitanteCorreo, db: DB):
 def _cuenta_con_password(db: DB, role: str, email: str) -> Cuenta | None:
     if role == "organizador":
         return db.scalar(select(Organizador).where(Organizador.email == email))
+    if role == "superadmin":
+        return db.scalar(select(SuperAdmin).where(SuperAdmin.email == email))
     return db.scalar(select(Empresa).where(Empresa.email == email)) or db.scalar(
         select(UsuarioEmpresa).where(UsuarioEmpresa.email == email)
     )
@@ -155,7 +170,7 @@ def recuperar_cambiar(data: RecuperarCambiar, db: DB):
 
 # ---------- Cuenta propia del organizador o la empresa ----------
 
-SesionConPassword = Annotated[Sesion, Depends(requiere("organizador", "empresa"))]
+SesionConPassword = Annotated[Sesion, Depends(requiere("organizador", "empresa", "superadmin"))]
 
 
 def _cuenta_de_sesion(db: DB, sesion: Sesion) -> Cuenta:
@@ -163,7 +178,8 @@ def _cuenta_de_sesion(db: DB, sesion: Sesion) -> Cuenta:
     if sesion.role == "empresa" and sesion.usuario_id:
         cuenta = db.get(UsuarioEmpresa, sesion.usuario_id)
     else:
-        cuenta = db.get(Empresa if sesion.role == "empresa" else Organizador, sesion.ref_id)
+        modelo = {"empresa": Empresa, "superadmin": SuperAdmin}.get(sesion.role, Organizador)
+        cuenta = db.get(modelo, sesion.ref_id)
     if not cuenta:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontramos tu cuenta. Vuelve a ingresar.")
     return cuenta
@@ -193,8 +209,9 @@ def cambiar_correo(data: CambiarCorreo, db: DB, sesion: SesionConPassword):
     _confirmar_password(cuenta, data.password)
     email = data.email.lower()
     if email != cuenta.email:
-        if isinstance(cuenta, Organizador):
-            otro = db.scalar(select(Organizador.id).where(Organizador.email == email))
+        if isinstance(cuenta, (Organizador, SuperAdmin)):
+            modelo = type(cuenta)
+            otro = db.scalar(select(modelo.id).where(modelo.email == email))
             if otro and otro != cuenta.id:
                 raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese correo.")
         else:

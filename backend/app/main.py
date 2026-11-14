@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -7,10 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import settings
+from .errores import traducir
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
-from .routers import auth, demo, empresas, ferias, leads, legal, sitio, visitantes, vistas
-from .seed import crear_organizador_inicial
+from .routers import admin, auth, demo, empresas, ferias, leads, legal, sitio, solicitudes, visitantes, vistas
+from .planes import crear_planes_iniciales
+from .seed import crear_organizador_inicial, crear_superadmin_inicial
 
 
 @asynccontextmanager
@@ -18,9 +21,13 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
     migrar(engine)
     with SessionLocal() as db:
+        crear_planes_iniciales(db)
+        crear_superadmin_inicial(db)
         crear_organizador_inicial(db)
     yield
 
+
+log = logging.getLogger("feriabot")
 
 app = FastAPI(title="FeriaBot Pro API", version="0.1.0", lifespan=lifespan)
 
@@ -56,19 +63,19 @@ async def https_y_cabeceras(request: Request, siguiente):
 
 @app.exception_handler(RequestValidationError)
 async def error_validacion(_: Request, exc: RequestValidationError):
-    """`detail` como texto legible (el frontend muestra `error.message`); el detalle completo va en `errors`."""
-    partes = []
-    for e in exc.errors():
-        campo = ".".join(str(x) for x in e["loc"] if x not in ("body", "query", "path"))
-        if e["type"] == "value_error":
-            # Mensajes propios (RUC, etc.): ya están escritos para el usuario.
-            partes.append(e["msg"].removeprefix("Value error, "))
-        else:
-            partes.append(f"{campo}: {e['msg']}" if campo else e["msg"])
-    return JSONResponse(status_code=422, content={"detail": "; ".join(partes), "errors": jsonable_encoder(exc.errors())})
+    """`detail` en español y legible (el frontend muestra `error.message`); el detalle técnico va en `errors`."""
+    partes = list(dict.fromkeys(traducir(e) for e in exc.errors()))
+    return JSONResponse(status_code=422, content={"detail": " ".join(partes), "errors": jsonable_encoder(exc.errors())})
 
 
-for r in (auth, ferias, empresas, visitantes, leads, vistas, demo, legal, sitio):
+@app.exception_handler(Exception)
+async def error_inesperado(request: Request, exc: Exception):
+    """Cualquier error no previsto: se registra completo en la consola y el usuario recibe un mensaje claro."""
+    log.exception("Error inesperado en %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Ocurrió un error inesperado en el servidor. Intenta de nuevo en unos segundos."})
+
+
+for r in (auth, admin, solicitudes, ferias, empresas, visitantes, leads, vistas, demo, legal, sitio):
     app.include_router(r.router)
 
 

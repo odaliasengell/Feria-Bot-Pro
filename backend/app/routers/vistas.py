@@ -9,8 +9,8 @@ from ..models import Empresa, VistaFicha
 from ..schemas import Sesion, VistaDetalleOut, VistaOut, VistaRegistrar
 from ..security import requiere, solo_propio
 from ..utils import ahora, uid
-from .empresas import obtener_empresa
-from .ferias import exigir_inscripcion
+from .empresas import empresa_de
+from .ferias import exigir_inscripcion, ids_ferias_de
 from .leads import alcance
 from .visitantes import obtener_visitante
 
@@ -26,7 +26,7 @@ def registrar(
     """El visitante abrió la ficha de una empresa escaneando el QR del stand."""
     solo_propio(sesion, "visitante", data.visitante_id)
     obtener_visitante(db, data.visitante_id)
-    empresa = obtener_empresa(db, data.empresa_id)
+    empresa = empresa_de(db, data.empresa_id, sesion)
     exigir_inscripcion(
         db, empresa.feria, data.visitante_id, f"Inscríbete a «{empresa.feria.nombre}» para guardar esta empresa en tu historial."
     )
@@ -63,4 +63,6 @@ def listar(
         q = q.where(VistaFicha.empresa_id == empresa_id)
     if feria_id:
         q = q.where(VistaFicha.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id == feria_id)))
+    if sesion.role == "organizador":
+        q = q.where(VistaFicha.empresa_id.in_(select(Empresa.id).where(Empresa.feria_id.in_(ids_ferias_de(sesion.ref_id)))))
     return db.scalars(q).all()
