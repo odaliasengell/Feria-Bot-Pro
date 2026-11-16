@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import create_engine
+from sqlalchemy import URL, create_engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import settings
@@ -21,7 +21,19 @@ def _argumentos_ssl() -> dict:
     return {"ssl": {"ca": str(ruta)}}
 
 
-engine = create_engine(settings.database_url, pool_pre_ping=True, pool_recycle=3600, connect_args=_argumentos_ssl())
+def _url_base() -> URL:
+    """Acepta también la «Service URI» tal como la copia el proveedor (p. ej. Aiven: mysql://…?ssl-mode=REQUIRED):
+    usa el driver PyMySQL, que es el que está instalado, y quita `ssl-mode`, que PyMySQL no entiende (el SSL se
+    configura con DB_SSL_CA)."""
+    url = make_url(settings.database_url.strip())
+    if url.drivername == "mysql":
+        url = url.set(drivername="mysql+pymysql")
+    consulta = {k: v for k, v in url.query.items() if k.lower() not in ("ssl-mode", "ssl_mode", "sslmode")}
+    consulta.setdefault("charset", "utf8mb4")
+    return url.set(query=consulta)
+
+
+engine = create_engine(_url_base(), pool_pre_ping=True, pool_recycle=3600, connect_args=_argumentos_ssl())
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
