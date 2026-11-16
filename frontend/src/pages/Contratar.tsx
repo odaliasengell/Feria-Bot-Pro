@@ -5,6 +5,7 @@ import type { DatosTransferencia, MetodoPago, Periodo, Plan, PlanId, SolicitudCr
 import { planesApi } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { dinero } from '../lib/planes';
+import { redimensionarImagen } from '../lib/utils';
 import { errorEmail, errorNombre, errorRuc, errorTelefono, limpiarRuc } from '../lib/validacion';
 import { useValidacion } from '../lib/useValidacion';
 import { usePagina } from '../lib/seo';
@@ -14,7 +15,6 @@ import CajitaPayPhone from '../components/CajitaPayPhone';
 import { CabeceraCheckout, Recibo } from '../components/Checkout';
 import { MarcasAceptadas } from '../components/MarcasTarjeta';
 
-const MAX_MB = 3.5;
 type Datos = { nombre: string; ruc: string; contactoNombre: string; email: string; telefono: string; ciudad: string; mensaje: string };
 const VACIOS: Datos = { nombre: '', ruc: '', contactoNombre: '', email: '', telefono: '', ciudad: '', mensaje: '' };
 
@@ -398,9 +398,12 @@ function Transferencia({
     const file = files?.[0];
     if (!file) return;
     if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(file.type)) return setError('El comprobante debe ser una imagen (JPG, PNG o WebP) o un PDF.');
-    if (file.size > MAX_MB * 1024 * 1024) return setError(`El comprobante pesa más de ${MAX_MB} MB.`);
+    if (file.type === 'application/pdf' && file.size > 700 * 1024) return setError('El PDF pesa más de 700 KB. Sube una captura de pantalla del comprobante.');
+    if (file.size > 15 * 1024 * 1024) return setError('La imagen pesa demasiado (máximo 15 MB).');
     setError(null);
-    setComprobante({ nombre: file.name, url: await leerArchivo(file) });
+    // Las fotos y capturas se comprimen (JPEG, máx. 1600 px): suelen bajar de varios MB a unos 200–400 KB.
+    const url = file.type === 'application/pdf' ? await leerArchivo(file) : await redimensionarImagen(file, 1600, true);
+    setComprobante({ nombre: file.name, url });
   }
 
   async function copiar(texto: string, clave: string) {
@@ -449,7 +452,7 @@ function Transferencia({
       )}
       {banco.instrucciones && <p className="muted small">{banco.instrucciones}</p>}
 
-      <Field label="Comprobante" hint={`Captura o PDF de la transferencia (máx. ${MAX_MB} MB).`}>
+      <Field label="Comprobante" hint="Foto o captura de la transferencia (la comprimimos al subirla) o un PDF de hasta 700 KB.">
         {comprobante ? (
           <div className="comprobante-elegido">
             {comprobante.url.startsWith('data:image/') ? <img src={comprobante.url} alt="Comprobante" /> : <FileText size={28} />}

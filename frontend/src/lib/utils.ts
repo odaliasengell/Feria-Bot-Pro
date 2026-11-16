@@ -182,7 +182,8 @@ export function portadaDesdeArchivo(file: File): Promise<string> {
   });
 }
 
-export function redimensionarImagen(file: File, max = 900): Promise<string> {
+/** `jpeg`: fuerza JPEG (más liviano que PNG para capturas y fotos). */
+export function redimensionarImagen(file: File, max = 900, jpeg = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
@@ -196,7 +197,7 @@ export function redimensionarImagen(file: File, max = 900): Promise<string> {
         canvas.height = Math.round(img.height * escala);
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const png = file.type === 'image/png' || file.type === 'image/svg+xml';
+        const png = !jpeg && (file.type === 'image/png' || file.type === 'image/svg+xml');
         resolve(canvas.toDataURL(png ? 'image/png' : 'image/jpeg', 0.82));
       };
       img.src = reader.result as string;

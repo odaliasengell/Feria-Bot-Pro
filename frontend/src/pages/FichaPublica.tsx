@@ -198,7 +198,15 @@ export default function FichaPublica() {
             </li>
             {empresa.sitioWeb && (
               <li>
-                <Globe size={18} /> <a href={empresa.sitioWeb} target="_blank" rel="noreferrer">{empresa.sitioWeb.replace(/^https?:\/\//, '')}</a>
+                <Globe size={18} />{' '}
+                {/^https?:\/\//i.test(empresa.sitioWeb) ? (
+                  // Solo enlaces http(s): nunca `javascript:` aunque llegara un dato antiguo.
+                  <a href={empresa.sitioWeb} target="_blank" rel="noopener noreferrer">
+                    {empresa.sitioWeb.replace(/^https?:\/\//i, '')}
+                  </a>
+                ) : (
+                  <span>{empresa.sitioWeb}</span>
+                )}
               </li>
             )}
           </ul>

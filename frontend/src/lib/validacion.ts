@@ -3,7 +3,7 @@
  * Los mensajes se muestran debajo del campo (ver `Field` con `error` y el hook `useValidacion`).
  */
 
-export const MIN_PASSWORD = 6;
+export const MIN_PASSWORD = 8;
 export const MAX_PASSWORD = 72;
 
 const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -58,6 +58,7 @@ export function errorPassword(v: string, requerido = true): string | null {
   if (!v) return requerido ? 'La contraseña es obligatoria.' : null;
   if (v.length < MIN_PASSWORD) return `Mínimo ${MIN_PASSWORD} caracteres.`;
   if (new TextEncoder().encode(v).length > MAX_PASSWORD) return `Máximo ${MAX_PASSWORD} caracteres.`;
+  if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v) || !/\d/.test(v)) return 'Combina letras y números.';
   if (v.trim() !== v) return 'No empieces ni termines la contraseña con espacios.';
   return null;
 }
