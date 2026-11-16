@@ -7,8 +7,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .config import settings
+from .cifrado import revisar_clave as revisar_clave_cifrado
+from .config import revisar_clave_jwt, settings
 from .errores import traducir
+from .limites import permitir_peticion
 from .database import Base, SessionLocal, engine
 from .migraciones import migrar
 from .routers import admin, auth, demo, empresas, ferias, leads, legal, sitio, solicitudes, visitantes, vistas
@@ -18,6 +20,12 @@ from .seed import crear_organizador_inicial, crear_superadmin_inicial
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    aviso = revisar_clave_jwt()
+    if aviso:
+        log.warning("ATENCIÓN: %s", aviso)
+    aviso = revisar_clave_cifrado()
+    if aviso:
+        log.warning("ATENCIÓN: %s", aviso)
     Base.metadata.create_all(engine)
     migrar(engine)
     with SessionLocal() as db:
@@ -45,6 +53,20 @@ _LOCALES = {"localhost", "127.0.0.1", "::1"}
 
 
 @app.middleware("http")
+async def limite_general(request: Request, siguiente):
+    """Demasiadas peticiones seguidas desde la misma IP → 429 (frena scripts y recargas en bucle)."""
+    if request.method != "OPTIONS" and request.url.path != "/health":
+        ok, espera = permitir_peticion(request)
+        if not ok:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"Demasiadas solicitudes seguidas. Espera {espera} segundos y vuelve a intentarlo."},
+                headers={"Retry-After": str(espera)},
+            )
+    return await siguiente(request)
+
+
+@app.middleware("http")
 async def https_y_cabeceras(request: Request, siguiente):
     """Con FORZAR_HTTPS redirige http → https (detrás de un proxy, respetando X-Forwarded-Proto) y envía HSTS.
     Siempre agrega cabeceras de seguridad básicas."""
@@ -56,6 +78,10 @@ async def https_y_cabeceras(request: Request, siguiente):
     respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
     respuesta.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     respuesta.headers.setdefault("X-Frame-Options", "DENY")
+    # La API solo devuelve datos: nada de scripts, estilos ni marcos si alguien abre una respuesta en el navegador.
+    if respuesta.headers.get("content-type", "").startswith("application/json"):
+        respuesta.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+    respuesta.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), payment=()")
     if settings.forzar_https:
         respuesta.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return respuesta
@@ -71,6 +97,14 @@ async def error_validacion(_: Request, exc: RequestValidationError):
 @app.exception_handler(Exception)
 async def error_inesperado(request: Request, exc: Exception):
     """Cualquier error no previsto: se registra completo en la consola y el usuario recibe un mensaje claro."""
+    texto = str(exc)
+    if "max_allowed_packet" in texto or "(1153" in texto or "(1301" in texto:
+        # MySQL rechazó el dato por tamaño (max_allowed_packet): el archivo es más grande de lo que acepta el servidor.
+        log.error("MySQL rechazó un dato por tamaño en %s: sube max_allowed_packet (my.ini) a 16M", request.url.path)
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "El archivo es demasiado grande para el servidor. Prueba con una imagen más liviana o una captura de pantalla."},
+        )
     log.exception("Error inesperado en %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Ocurrió un error inesperado en el servidor. Intenta de nuevo en unos segundos."})
 

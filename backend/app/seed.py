@@ -5,6 +5,7 @@ Uso:
     py -m app.seed --reset    # borra todo y vuelve a cargar la demo
 """
 
+import logging
 import sys
 from datetime import date, timedelta
 
@@ -19,13 +20,37 @@ from .models import CodigoVerificacion, Empresa, Feria, Inscripcion, Lead, Organ
 from .security import hash_password
 from .utils import ahora, ruc_persona_natural, uid
 
+log = logging.getLogger("feriabot.seed")
 PASSWORD_DEMO_EMPRESAS = "empresa123"
 
 
+CONTRASENAS_DE_EJEMPLO = {"superadmin123", "admin123", "empresa123", "organizador123", "vendedor123"}
+
+
 def crear_superadmin_inicial(db: Session) -> None:
-    """Crea el Super Administrador de SUPERADMIN_EMAIL solo si todavía no hay ninguno."""
+    """Crea el Super Administrador de SUPERADMIN_EMAIL solo si todavía no hay ninguno.
+
+    En producción no lo crea con la contraseña de ejemplo ni con una débil: en ese caso hay que definir
+    SUPERADMIN_PASSWORD en el .env o crearlo con `py -m app.crear_superadmin`.
+    """
     if db.scalar(select(SuperAdmin.id).limit(1)):
         return
+    if settings.es_produccion:
+        from .schemas import _validar_password
+
+        motivo = None
+        if settings.superadmin_password in CONTRASENAS_DE_EJEMPLO:
+            motivo = "SUPERADMIN_PASSWORD es la contraseña de ejemplo"
+        else:
+            try:
+                _validar_password(settings.superadmin_password)
+            except ValueError as e:
+                motivo = f"SUPERADMIN_PASSWORD no es segura ({e})"
+        if motivo:
+            log.error(
+                "No se creó el Super Administrador: %s. Defínela en el .env o créalo con: py -m app.crear_superadmin", motivo
+            )
+            return
     db.add(
         SuperAdmin(
             id=uid("sa-"),
@@ -48,6 +73,9 @@ def crear_organizador_inicial(db: Session) -> None:
     Así, si el organizador cambia su correo o contraseña desde la app, al reiniciar no reaparece la cuenta
     por defecto (admin@feriabot.com / admin123).
     """
+    if settings.es_produccion:
+        # En producción los organizadores los crea el Super Administrador (o llegan al contratar un plan).
+        return
     email = settings.admin_email.lower()
     if db.scalar(select(Organizador.id).limit(1)):
         return

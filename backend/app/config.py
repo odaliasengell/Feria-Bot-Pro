@@ -22,6 +22,14 @@ class Settings(BaseSettings):
 
     demo_mode: bool = True
 
+    # «produccion» al publicar: no crea cuentas con contraseñas de ejemplo y exige claves fuertes. También cuenta como
+    # producción tener FORZAR_HTTPS=true.
+    entorno: str = "desarrollo"
+
+    @property
+    def es_produccion(self) -> bool:
+        return self.entorno.strip().lower() in ("produccion", "producción", "production") or self.forzar_https
+
     # Correo saliente (Gmail: smtp.gmail.com, 587 y una contraseña de aplicación).
     # Si smtp_user está vacío no se envía nada y los códigos se muestran en la consola.
     smtp_host: str = "smtp.gmail.com"
@@ -38,6 +46,11 @@ class Settings(BaseSettings):
     forzar_https: bool = False
     # Límite de intentos por IP en inicios de sesión, códigos por correo y registro (anti spam).
     limites_activos: bool = True
+
+    # Clave AES-256-GCM (32 bytes en base64) para cifrar teléfonos, comprobantes e IP. Ver app/cifrado.py.
+    clave_cifrado: str = ""
+    # Redis para los límites de intentos (opcional). Vacío = contador en memoria (un solo proceso).
+    redis_url: str = ""
 
     # PayPhone (pago con tarjeta). Sin token y store id, el pago con tarjeta queda desactivado.
     payphone_token: str = ""
@@ -64,3 +77,20 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+CLAVE_DE_EJEMPLO = "cambia-esta-clave"
+
+
+def revisar_clave_jwt() -> str | None:
+    """Con la clave de ejemplo (o una corta) cualquiera podría fabricar sesiones válidas, incluso de Super
+    Administrador. En producción (FORZAR_HTTPS) el servidor no arranca; en desarrollo se avisa."""
+    if settings.jwt_secret == CLAVE_DE_EJEMPLO or len(settings.jwt_secret) < 32:
+        mensaje = (
+            "JWT_SECRET es la clave de ejemplo o tiene menos de 32 caracteres. Genera una con:\n"
+            '    py -c "import secrets; print(secrets.token_urlsafe(48))"\n'
+            "y ponla en JWT_SECRET del archivo .env."
+        )
+        if settings.es_produccion:
+            raise RuntimeError(mensaje)
+        return mensaje
+    return None

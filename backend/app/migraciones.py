@@ -207,6 +207,48 @@ def _agregar_pago_tarjeta(engine: Engine) -> None:
                 conn.execute(text(f"ALTER TABLE solicitudes_plan ADD COLUMN {nombre} VARCHAR({largo}) NOT NULL DEFAULT ''"))
 
 
+# Columnas cifradas: (tabla, columna, tipo nuevo). El texto cifrado ocupa más que el original.
+CIFRADAS = [
+    ("visitantes", "telefono", "TEXT"),
+    ("empresas", "telefono", "TEXT"),
+    ("organizadores", "telefono", "TEXT"),
+    ("solicitudes_plan", "telefono", "TEXT"),
+    ("solicitudes_plan", "comprobante", "LONGTEXT"),
+    ("aceptaciones_politica", "ip", "TEXT"),
+    ("aceptaciones_politica", "user_agent", "TEXT"),
+    ("auditoria", "ip", "TEXT"),
+]
+
+
+def _cifrar_existentes(engine: Engine) -> None:
+    """Agranda las columnas cifradas y cifra los datos que estaban en claro (una sola vez: los cifrados llevan
+    el prefijo «enc:v1:» y se saltan). Sin CLAVE_CIFRADO solo agranda las columnas."""
+    from .cifrado import PREFIJO, activo, cifrar
+
+    insp = inspect(engine)
+    tablas = set(insp.get_table_names())
+    for tabla, columna, tipo in CIFRADAS:
+        if tabla not in tablas:
+            continue
+        actual = next((c for c in insp.get_columns(tabla) if c["name"] == columna), None)
+        if actual is None:
+            continue
+        if "TEXT" not in str(actual["type"]).upper():
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {tabla} MODIFY {columna} {tipo} NULL"))
+        if not activo():
+            continue
+        with engine.begin() as conn:
+            filas = conn.execute(
+                text(f"SELECT id, {columna} FROM {tabla} WHERE {columna} IS NOT NULL AND {columna} <> '' AND {columna} NOT LIKE :p"),
+                {"p": PREFIJO + "%"},
+            ).all()
+            for id_, valor in filas:
+                conn.execute(text(f"UPDATE {tabla} SET {columna} = :v WHERE id = :id"), {"v": cifrar(valor), "id": id_})
+            if filas:
+                print(f"[migración] {len(filas)} valores cifrados en {tabla}.{columna}", flush=True)
+
+
 def migrar(engine: Engine) -> None:
     _agregar_ferias(engine)
     _agregar_politica(engine)
@@ -220,3 +262,4 @@ def migrar(engine: Engine) -> None:
     _agregar_planes(engine)
     _historico_aceptaciones(engine)
     _agregar_pago_tarjeta(engine)
+    _cifrar_existentes(engine)

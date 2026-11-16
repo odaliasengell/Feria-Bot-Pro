@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..database import DB
-from ..limites import limite
+from ..limites import exigir_cuenta_libre, limite, registrar_exito, registrar_fallo
 from ..models import Empresa, Organizador, SuperAdmin, UsuarioEmpresa, Visitante
 from ..schemas import (
     CambiarCorreo,
@@ -28,6 +28,24 @@ from .visitantes import buscar_por_codigo_o_email
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos."
+
+
+def _fallo_login(clave: str) -> HTTPException:
+    """Cuenta el intento fallido de esa cuenta y arma el mensaje (avisa cuando quedan pocos intentos)."""
+    quedan = registrar_fallo(clave)
+    if quedan == 0:
+        return HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Por seguridad bloqueamos el ingreso a esta cuenta durante 15 minutos por demasiados intentos fallidos. "
+            "Puedes recuperar tu contraseña.",
+        )
+    if quedan <= 2:
+        return HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            f"{CREDENCIALES_INVALIDAS} Te {'queda 1 intento' if quedan == 1 else f'quedan {quedan} intentos'} "
+            "antes de bloquear el ingreso por 15 minutos.",
+        )
+    return HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
 
 
 def _token(sesion: Sesion) -> TokenOut:
@@ -63,18 +81,24 @@ SPAM = "No se pudo completar la solicitud."
 
 @router.post("/organizador", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_organizador(data: LoginPassword, db: DB):
+    clave = f"organizador:{data.email.lower()}"
+    exigir_cuenta_libre(clave)
     org = db.scalar(select(Organizador).where(Organizador.email == data.email.lower()))
     if not org or not org.password_hash or not verificar_password(data.password, org.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
+        raise _fallo_login(clave)
+    registrar_exito(clave)
     return _token(_sesion_de(org))
 
 
 @router.post("/superadmin", response_model=TokenOut, dependencies=LIMITE_LOGIN)
 def login_superadmin(data: LoginPassword, db: DB):
     """Ingreso del equipo de FeriaBot Pro (Super Administrador)."""
+    clave = f"superadmin:{data.email.lower()}"
+    exigir_cuenta_libre(clave)
     sa = db.scalar(select(SuperAdmin).where(SuperAdmin.email == data.email.lower()))
     if not sa or not verificar_password(data.password, sa.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
+        raise _fallo_login(clave)
+    registrar_exito(clave)
     return _token(_sesion_de(sa))
 
 
@@ -82,6 +106,8 @@ def login_superadmin(data: LoginPassword, db: DB):
 def login_empresa(data: LoginPassword, db: DB):
     """La empresa con su correo principal o uno de sus vendedores con el suyo."""
     email = data.email.lower()
+    clave = f"empresa:{email}"
+    exigir_cuenta_libre(clave)
     cuenta: Empresa | UsuarioEmpresa | None = db.scalar(select(Empresa).where(Empresa.email == email))
     if cuenta is None:
         cuenta = db.scalar(select(UsuarioEmpresa).where(UsuarioEmpresa.email == email))
@@ -91,7 +117,8 @@ def login_empresa(data: LoginPassword, db: DB):
             "Tu empresa aún no tiene contraseña. Pídela a la organización de la feria.",
         )
     if not cuenta or not verificar_password(data.password, cuenta.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, CREDENCIALES_INVALIDAS)
+        raise _fallo_login(clave)
+    registrar_exito(clave)
     return _token(_sesion_de(cuenta))
 
 

@@ -349,7 +349,7 @@ def visitantes(
         select(func.count()).select_from(Inscripcion).where(Inscripcion.visitante_id == Visitante.id).correlate(Visitante).scalar_subquery()
     )
     base = select(Visitante, ferias.label("ferias"))
-    filtro = coincide(q, Visitante.nombre, Visitante.codigo, Visitante.email, Visitante.telefono, Visitante.empresa, Visitante.ciudad)
+    filtro = coincide(q, Visitante.nombre, Visitante.codigo, Visitante.email, Visitante.empresa, Visitante.ciudad)
     if filtro is not None:
         base = base.where(filtro)
     filas = db.execute(recortar(base.order_by(Visitante.creado_en.desc(), Visitante.id), pagina, por_pagina)).all()
@@ -435,7 +435,7 @@ def aceptaciones(
 ):
     """Constancia de cada aceptación de la política de privacidad y tratamiento de datos."""
     base = select(AceptacionPolitica)
-    filtro = coincide(q, AceptacionPolitica.nombre, AceptacionPolitica.email, AceptacionPolitica.ip, AceptacionPolitica.registrado_por)
+    filtro = coincide(q, AceptacionPolitica.nombre, AceptacionPolitica.email, AceptacionPolitica.registrado_por)
     if filtro is not None:
         base = base.where(filtro)
     if origen:

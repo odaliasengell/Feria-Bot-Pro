@@ -112,7 +112,7 @@ def listar_pagina(
     resumen = db.execute(
         select(func.count(), func.count(Inscripcion.asistio_en)).where(Inscripcion.feria_id == feria_id)
     ).one()
-    filtro = coincide(q, Visitante.nombre, Visitante.codigo, Visitante.email, Visitante.telefono, Visitante.empresa, Visitante.ciudad)
+    filtro = coincide(q, Visitante.nombre, Visitante.codigo, Visitante.email, Visitante.empresa, Visitante.ciudad)
     if filtro is not None:
         base = base.where(filtro)
     if asistio is not None:

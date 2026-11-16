@@ -52,8 +52,9 @@ suelen cambiarse; el resto tiene un valor por defecto razonable.
 | `JWT_SECRET` | `cambia-esta-clave` | Firma de los tokens. En producción, una clave larga y aleatoria |
 | `JWT_EXPIRE_MINUTES` | `720` | Duración de la sesión (12 h) |
 | `CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | Orígenes del frontend que pueden llamar a la API (lista JSON) |
-| `ADMIN_EMAIL` · `ADMIN_PASSWORD` · `ADMIN_NOMBRE` | `admin@feriabot.com` · `admin123` · `Organización` | Organizador que se crea al arrancar **solo si no existe ninguno** |
-| `SUPERADMIN_EMAIL` · `SUPERADMIN_PASSWORD` · `SUPERADMIN_NOMBRE` | `superadmin@feriabot.com` · `superadmin123` · `FeriaBot Pro` | Super Administrador que se crea al arrancar **solo si no existe ninguno**. Cámbialo en producción |
+| `ENTORNO` | `desarrollo` | `produccion` al publicar: no crea cuentas de ejemplo y exige `JWT_SECRET`, `CLAVE_CIFRADO` y contraseñas fuertes |
+| `ADMIN_EMAIL` · `ADMIN_PASSWORD` · `ADMIN_NOMBRE` | `admin@feriabot.com` · `admin123` · `Organización` | **Solo desarrollo**: organizador de prueba que se crea si no existe ninguno. En producción no se crea |
+| `SUPERADMIN_EMAIL` · `SUPERADMIN_PASSWORD` · `SUPERADMIN_NOMBRE` | `superadmin@feriabot.com` · `superadmin123` · `FeriaBot Pro` | Primer Super Administrador, solo si no existe ninguno. Los valores por defecto son **solo de desarrollo**: en producción no se crea con la contraseña de ejemplo ni con una débil (ver «Publicación») |
 | `DEMO_MODE` | `true` | Habilita `POST /demo/reiniciar` |
 | `SMTP_HOST` · `SMTP_PORT` | `smtp.gmail.com` · `587` | Servidor de correo (465 usa SSL directo) |
 | `SMTP_USER` · `SMTP_PASSWORD` | vacío | Cuenta y contraseña de aplicación. Vacío = no se envía nada y los códigos salen en la consola |
@@ -61,6 +62,8 @@ suelen cambiarse; el resto tiene un valor por defecto razonable.
 | `CODIGO_MINUTOS` | `10` | Vigencia de los códigos de verificación |
 | `ZONA_HORARIA_UTC` | `-5` | Diferencia con UTC de la hora local (Ecuador). Las fechas se guardan en UTC; las estadísticas y el Excel de leads usan la hora local |
 | `FRONTEND_URL` | `http://localhost:5173` | Dirección pública del frontend: botones de los correos, `robots.txt` y `sitemap.xml`. Cambiarla al publicar la app |
+| `CLAVE_CIFRADO` | vacía | Clave AES-256-GCM (32 bytes en base64) para cifrar teléfonos, comprobantes e IP. Obligatoria en producción. **Respáldala** |
+| `REDIS_URL` | vacía | Redis para los límites de intentos (opcional, requiere `pip install redis`). Vacía = memoria |
 | `PAYPHONE_TOKEN` · `PAYPHONE_STORE_ID` | vacíos | Credenciales de PayPhone Developer para el pago con tarjeta. Vacías: solo transferencia (la opción tarjeta sale como «Próximamente») |
 | `PAYPHONE_DEMO` | `false` | Solo desarrollo: sin cuenta de PayPhone, muestra una cajita de prueba (no cobra) y simula la confirmación; el resto del flujo es el real. Si hay credenciales reales, se ignora. **Nunca en producción** |
 | `PAYPHONE_CONFIRM_URL` | `https://paymentbox.payphonetodoesposible.com/api/confirm` | Confirmación de la cajita (solo se cambia para pruebas locales) |
@@ -96,16 +99,59 @@ app/
 
 ## Protección contra spam y seguridad
 
+- **Inyección SQL**: todas las consultas usan SQLAlchemy con parámetros; ningún dato del usuario se concatena en SQL
+  (las búsquedas escapan `%` y `_`).
+- **XSS**: React escapa todo lo que muestra. El backend solo acepta sitios web `http(s)://` (nunca `javascript:` ni
+  `data:`) y logos/fotos/portadas JPG, PNG o WebP (no SVG) de hasta ~1,5 MB. Los correos escapan cada dato.
+- **Bloqueo de cuenta**: 5 contraseñas incorrectas en 15 minutos contra la misma cuenta (organizador, empresa o Super
+  Administrador) la bloquean 15 minutos, aunque los intentos vengan de IPs distintas; avisa cuando quedan 2 y 1
+  intentos. Un ingreso correcto reinicia el contador. Los códigos por correo admiten 5 intentos.
 - **Límite de intentos por IP** (`app/limites.py`): inicios de sesión 10 cada 5 minutos, códigos por correo 5 cada
-  10 minutos y registro público 10 cada 10 minutos (el organizador no tiene límite). Al pasarlo responde 429 con
-  `Retry-After`. Es un contador en memoria: vale para un proceso; con varios, usar uno compartido (Redis).
-- **Campo trampa (honeypot)**: el formulario de registro envía `empresaWeb` oculto y vacío; si llega con texto,
-  `POST /visitantes` y `POST /auth/enviar-codigo` responden 400.
-- **Cabeceras**: `X-Content-Type-Options`, `Referrer-Policy` y `X-Frame-Options` siempre; HSTS con `FORZAR_HTTPS`.
-- En desarrollo todas las peticiones pasan por el proxy de Vite y comparten la IP 127.0.0.1: si haces muchas
-  pruebas seguidas y ves «Demasiados intentos», reinicia el backend o pon `LIMITES_ACTIVOS=false`.
+  10 minutos, registro público 10 cada 10 minutos y solicitudes de plan 5 por hora. Además, **límite general** de 300
+  peticiones por minuto por IP para toda la API. Al pasarlo responde 429 con `Retry-After`. Es un contador en
+  memoria: vale para un proceso; con varios, usar uno compartido (Redis).
+- **Validación en el backend**: cada dato se valida con Pydantic aunque el frontend ya lo haya hecho (correo, teléfono
+  de 7 a 15 dígitos, RUC, largos, fechas, montos). Los mensajes de error salen en español (`app/errores.py`).
+- **Cifrado de datos sensibles (AES-256-GCM)** (`app/cifrado.py`): teléfonos (visitantes, empresas, organizadores y
+  solicitudes), comprobantes de transferencia e IP y navegador de las constancias se guardan cifrados con
+  `CLAVE_CIFRADO`. La app cifra al guardar y descifra al leer (tipo de columna `TextoCifrado`); en la base solo se ve
+  `enc:v1:…`. Cada valor lleva un nonce aleatorio y la etiqueta GCM detecta cualquier alteración. Nombres, correos,
+  ciudades y RUC quedan en claro porque se buscan y deben ser únicos (por eso la búsqueda ya no encuentra por
+  teléfono). Al arrancar, la migración cifra lo que estaba en claro. **Respalda `CLAVE_CIFRADO`: si se pierde, esos
+  datos no se pueden recuperar.** Sin la clave el backend avisa (y en producción no arranca).
+- **Redis (opcional)**: con `REDIS_URL` (y `pip install redis`) los límites y bloqueos se guardan en Redis y valen
+  para varios procesos o servidores y tras un reinicio; si Redis no responde, se usa memoria.
+- **Tamaño de archivos en MySQL**: XAMPP trae `max_allowed_packet=1M` en `[mysqld]` de `my.ini`; súbelo a `16M`
+  para portadas y comprobantes grandes. Si MySQL rechaza un archivo, la API responde 413 con un mensaje claro.
+- **Contraseñas**: mínimo 8 caracteres con letras y números, guardadas con **bcrypt** (con sal, costo 12). Los
+  códigos por correo se guardan como HMAC-SHA256; las sesiones son JWT firmados con HS256 que vencen.
+- **`JWT_SECRET`**: debe ser larga y aleatoria (`py -c "import secrets; print(secrets.token_urlsafe(48))"`). Con la
+  clave de ejemplo o una de menos de 32 caracteres el backend avisa en la consola y, con `FORZAR_HTTPS=true`
+  (producción), no arranca.
+- **Campo trampa (honeypot)** en el registro y en la contratación: si llega con texto, se rechaza.
+- **Cabeceras**: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` y, en las
+  respuestas JSON, `Content-Security-Policy: default-src 'none'`; HSTS con `FORZAR_HTTPS`.
+- En desarrollo todas las peticiones salen de 127.0.0.1: si haces muchas pruebas seguidas y ves «Demasiados
+  intentos», reinicia el backend o pon `LIMITES_ACTIVOS=false`.
 
 ## Publicación
+
+**Primer Super Administrador en producción** (las credenciales de este README son solo de desarrollo):
+
+1. En el `.env` del servidor pon `ENTORNO=produccion`, un `JWT_SECRET` y una `CLAVE_CIFRADO` nuevas (nunca las de
+   tu computadora).
+2. Crea el Super Administrador con el comando, que pide correo, nombre y contraseña sin mostrarla ni guardarla:
+   ```
+   py -m app.crear_superadmin
+   ```
+   (Alternativa: `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` fuertes en el `.env` antes del primer arranque; después
+   bórralas del `.env`.)
+3. Entra en `https://tu-dominio/ingresar?rol=superadmin` y crea al resto del equipo desde **Equipo**.
+4. ¿Olvidaste la contraseña? `py -m app.crear_superadmin` con el mismo correo la cambia. `--listar` muestra quiénes
+   tienen acceso.
+
+En producción no se crea el organizador de prueba (`admin@feriabot.com`) ni el Super Administrador con
+`superadmin123`; si la contraseña configurada es débil, el backend lo avisa en la consola y no lo crea.
 
 - **HTTPS**: el hosting (Vercel, Render, Railway…) entrega el certificado; activa `FORZAR_HTTPS=true` en la API.
 - **Detrás de un proxy**, arranca uvicorn con `--proxy-headers --forwarded-allow-ips="*"` para que el límite de

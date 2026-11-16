@@ -1,5 +1,6 @@
 """Esquemas de entrada/salida. Se exponen en camelCase para coincidir con frontend/src/types.ts."""
 
+import re
 from datetime import date, datetime
 from typing import Annotated, Literal
 
@@ -21,7 +22,86 @@ Fecha = Annotated[
     datetime,
     PlainSerializer(lambda d: d.replace(tzinfo=None).isoformat(timespec="milliseconds") + "Z", return_type=str),
 ]
-Password = Annotated[str, Field(min_length=6, max_length=72)]
+def _validar_password(v: object) -> str:
+    """Mínimo 8 caracteres, con al menos una letra y un número (bcrypt usa hasta 72 bytes)."""
+    p = str(v or "")
+    if len(p) < 8:
+        raise ValueError("La contraseña debe tener al menos 8 caracteres.")
+    if len(p.encode()) > 72:
+        raise ValueError("La contraseña admite como máximo 72 caracteres.")
+    if not re.search(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]", p) or not re.search(r"\d", p):
+        raise ValueError("La contraseña debe combinar letras y números.")
+    if p.strip() != p:
+        raise ValueError("La contraseña no puede empezar ni terminar con espacios.")
+    return p
+
+
+Password = Annotated[str, BeforeValidator(_validar_password)]
+
+
+def _validar_sitio_web(v: object) -> str | None:
+    """Solo direcciones http(s) con dominio: evita enlaces `javascript:` o `data:` en la ficha pública (XSS)."""
+    if v is None or not str(v).strip():
+        return None
+    url = str(v).strip()
+    if len(url) > 255:
+        raise ValueError("El sitio web admite como máximo 255 caracteres.")
+    if not re.fullmatch(r"https?://[^\s/?#]+\.[^\s/?#]{2,}[^\s]*", url, re.IGNORECASE):
+        raise ValueError("El sitio web debe ser una dirección completa, por ejemplo https://miempresa.com.")
+    return url
+
+
+SitioWeb = Annotated[str | None, BeforeValidator(_validar_sitio_web)]
+
+MAX_IMAGEN = 2_000_000
+
+
+def _validar_imagen(v: object) -> str | None:
+    """Logo o foto: data URL JPG/PNG/WebP (no SVG, que puede llevar scripts) o URL https; máximo ~1,5 MB."""
+    if v is None or not str(v).strip():
+        return None
+    img = str(v).strip()
+    if len(img) > MAX_IMAGEN:
+        raise ValueError("La imagen es demasiado grande (máximo 1,5 MB).")
+    if img.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,", "https://")):
+        return img
+    raise ValueError("La imagen debe ser JPG, PNG o WebP.")
+
+
+Imagen = Annotated[str | None, BeforeValidator(_validar_imagen)]
+ImagenObligatoria = Annotated[str, BeforeValidator(lambda v: _validar_imagen(v) or _sin_imagen())]
+
+
+def _sin_imagen() -> str:
+    raise ValueError("La imagen está vacía.")
+
+
+def _validar_telefono(v: object) -> str:
+    t = str(v or "").strip()
+    if not t:
+        return ""
+    if not re.fullmatch(r"\+?[\d\s().-]+", t):
+        raise ValueError("El teléfono solo puede tener números, espacios, + o guiones.")
+    digitos = len(re.sub(r"\D", "", t))
+    if digitos < 7 or digitos > 15:
+        raise ValueError("El teléfono debe tener entre 7 y 15 dígitos.")
+    return t
+
+
+Telefono = Annotated[str, BeforeValidator(_validar_telefono)]
+
+
+def _validar_email_opcional(v: object) -> str:
+    e = str(v or "").strip().lower()
+    if not e:
+        return ""
+    try:
+        return validate_email(e, check_deliverability=False).normalized.lower()
+    except EmailNotValidError:
+        raise ValueError("El correo no es válido. Escribe un correo como nombre@empresa.com.")
+
+
+EmailOpcional = Annotated[str, BeforeValidator(_validar_email_opcional)]
 
 
 def _validar_ruc(v: object) -> str:
@@ -287,10 +367,10 @@ class EmpresaBase(CamelModel):
     contacto_nombre: str = Field(default="", max_length=150)
     email: EmailStr = Field(max_length=150)
     telefono: str = Field(default="", max_length=40)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    sitio_web: SitioWeb = None
     stand: str = Field(default="", max_length=20)
-    logo: str | None = None
-    fotos: list[str] = Field(default=[], max_length=3)
+    logo: Imagen = None
+    fotos: list[ImagenObligatoria] = Field(default=[], max_length=3)
 
 
 class EmpresaCrear(EmpresaBase):
@@ -309,14 +389,18 @@ class EmpresaActualizar(CamelModel):
     contacto_nombre: str | None = Field(default=None, max_length=150)
     email: EmailStr | None = Field(default=None, max_length=150)
     telefono: str | None = Field(default=None, max_length=40)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    sitio_web: SitioWeb = None
     stand: str | None = Field(default=None, max_length=20)
-    logo: str | None = None
-    fotos: list[str] | None = Field(default=None, max_length=3)
+    logo: Imagen = None
+    fotos: list[ImagenObligatoria] | None = Field(default=None, max_length=3)
     password: Password | None = None
 
 
 class EmpresaOut(EmpresaBase):
+    # En la respuesta no se revalida lo ya guardado (la validación estricta es al crear o editar).
+    sitio_web: str | None = None
+    logo: str | None = None
+    fotos: list[str] = []
     id: str
     feria_id: str
     ruc: str | None = None
@@ -356,9 +440,9 @@ class VisitanteCrear(CamelModel):
     feria_id: str
     # Campo trampa (oculto en el formulario): una persona lo deja vacío; un bot suele llenarlo.
     empresa_web: str = Field(default="", max_length=200)
-    nombre: str = Field(min_length=1, max_length=150)
-    telefono: str = Field(default="", max_length=40)
-    email: str = Field(default="", max_length=150)
+    nombre: str = Field(min_length=2, max_length=150)
+    telefono: Telefono = ""
+    email: EmailOpcional = ""
     empresa: str = Field(default="", max_length=150)
     ciudad: str = Field(default="", max_length=100)
     # Obligatorio en el registro público con correo (lo envía POST /auth/enviar-codigo).
@@ -381,8 +465,8 @@ class VisitanteCrear(CamelModel):
 class VisitanteActualizar(CamelModel):
     """Cambios que el visitante hace en sus propios datos (el correo se cambia aparte, con código)."""
 
-    nombre: str | None = Field(default=None, min_length=1, max_length=150)
-    telefono: str | None = Field(default=None, max_length=40)
+    nombre: str | None = Field(default=None, min_length=2, max_length=150)
+    telefono: Telefono | None = None
     empresa: str | None = Field(default=None, max_length=150)
     ciudad: str | None = Field(default=None, max_length=100)
 
@@ -592,7 +676,7 @@ class OrganizadorFicha(CamelModel):
     telefono: str = Field(default="", max_length=40)
     direccion: str = Field(default="", max_length=255)
     ciudad: str = Field(default="", max_length=100)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    sitio_web: SitioWeb = None
     notas: str = Field(default="", max_length=2000)
 
 
@@ -618,7 +702,7 @@ class OrganizadorActualizar(CamelModel):
     telefono: str | None = Field(default=None, max_length=40)
     direccion: str | None = Field(default=None, max_length=255)
     ciudad: str | None = Field(default=None, max_length=100)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    sitio_web: SitioWeb = None
     notas: str | None = Field(default=None, max_length=2000)
     email: EmailStr | None = Field(default=None, max_length=150)
     password: Password | None = None

@@ -4,6 +4,7 @@ from sqlalchemy import JSON, Boolean, Date, Enum, ForeignKey, Integer, Numeric, 
 from sqlalchemy.dialects.mysql import DATETIME, LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from .cifrado import TextoCifrado, TextoCifradoLargo
 from .database import Base
 from .utils import ahora
 
@@ -54,7 +55,7 @@ class Organizador(Base):
     # RUC de Ecuador (13 dígitos). NULL solo en cuentas creadas antes de pedirlo.
     ruc: Mapped[str | None] = mapped_column(String(13), unique=True)
     contacto_nombre: Mapped[str] = mapped_column(String(150), default="", server_default="")
-    telefono: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    telefono: Mapped[str] = mapped_column(TextoCifrado, default="")
     direccion: Mapped[str] = mapped_column(String(255), default="", server_default="")
     ciudad: Mapped[str] = mapped_column(String(100), default="", server_default="")
     sitio_web: Mapped[str | None] = mapped_column(String(255))
@@ -124,7 +125,7 @@ class Empresa(Base):
     servicios: Mapped[list[str]] = mapped_column(JSON)
     contacto_nombre: Mapped[str] = mapped_column(String(150), default="")
     email: Mapped[str] = mapped_column(String(150), unique=True)
-    telefono: Mapped[str] = mapped_column(String(40), default="")
+    telefono: Mapped[str] = mapped_column(TextoCifrado, default="")
     sitio_web: Mapped[str | None] = mapped_column(String(255))
     stand: Mapped[str] = mapped_column(String(20), default="")
     logo: Mapped[str | None] = mapped_column(LONGTEXT)  # data URL o URL
@@ -157,7 +158,7 @@ class Visitante(Base):
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True)  # impreso en la tarjeta QR
     nombre: Mapped[str] = mapped_column(String(150))
-    telefono: Mapped[str] = mapped_column(String(40), default="")
+    telefono: Mapped[str] = mapped_column(TextoCifrado, default="")
     # NULL cuando no dejó correo, para que el índice único permita varios sin correo.
     email: Mapped[str | None] = mapped_column(String(150), unique=True)
     empresa: Mapped[str] = mapped_column(String(150), default="")
@@ -264,11 +265,11 @@ class SolicitudPlan(Base):
     ruc: Mapped[str] = mapped_column(String(13))
     contacto_nombre: Mapped[str] = mapped_column(String(150))
     email: Mapped[str] = mapped_column(String(150), index=True)
-    telefono: Mapped[str] = mapped_column(String(40))
+    telefono: Mapped[str] = mapped_column(TextoCifrado)
     ciudad: Mapped[str] = mapped_column(String(100), default="")
     mensaje: Mapped[str] = mapped_column(Text, default="")
     # Comprobante de la transferencia: data URL (imagen o PDF) y número de la transacción.
-    comprobante: Mapped[str | None] = mapped_column(LONGTEXT)
+    comprobante: Mapped[str | None] = mapped_column(TextoCifradoLargo)
     referencia: Mapped[str] = mapped_column(String(100), default="")
     # pendiente (transferencia por revisar) | pago_pendiente (tarjeta sin completar) | aprobada | rechazada
     estado: Mapped[str] = mapped_column(String(15), default="pendiente", index=True)
@@ -300,7 +301,7 @@ class Auditoria(Base):
     descripcion: Mapped[str] = mapped_column(String(500))
     entidad: Mapped[str] = mapped_column(String(30), default="")
     entidad_id: Mapped[str] = mapped_column(String(40), default="")
-    ip: Mapped[str] = mapped_column(String(45), default="")
+    ip: Mapped[str] = mapped_column(TextoCifrado, default="")
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
 
 
@@ -319,6 +320,6 @@ class AceptacionPolitica(Base):
     origen: Mapped[str] = mapped_column(String(30))
     # Si lo marcó el personal de la feria en nombre del visitante.
     registrado_por: Mapped[str] = mapped_column(String(150), default="")
-    ip: Mapped[str] = mapped_column(String(45), default="")
-    user_agent: Mapped[str] = mapped_column(String(255), default="")
+    ip: Mapped[str] = mapped_column(TextoCifrado, default="")
+    user_agent: Mapped[str] = mapped_column(TextoCifrado, default="")
     creado_en: Mapped[datetime] = mapped_column(Fecha, default=ahora, index=True)
