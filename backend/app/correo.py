@@ -34,7 +34,7 @@ def enviar_correo(destino: str, asunto: str, texto: str, html: str, imagenes: di
     """`imagenes` = {cid: imagen}: se adjuntan junto al HTML, que las muestra con src="cid:<cid>"."""
     msg = EmailMessage()
     msg["Subject"] = asunto
-    msg["From"] = formataddr((settings.mail_from_name, settings.smtp_user))
+    msg["From"] = formataddr((settings.mail_from_name, settings.mail_from or settings.smtp_user))
     msg["To"] = destino
     msg.set_content(texto)
     msg.add_alternative(html, subtype="html")

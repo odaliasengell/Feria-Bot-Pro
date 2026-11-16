@@ -36,6 +36,12 @@ async def lifespan(_: FastAPI):
 
 
 log = logging.getLogger("feriabot")
+# Los avisos propios (correo, seed, cifrado, límites…) salen en la consola / en los Logs del hosting, con el error completo.
+_consola = logging.StreamHandler()
+_consola.setFormatter(logging.Formatter("%(levelname)s:     [%(name)s] %(message)s"))
+log.addHandler(_consola)
+log.setLevel(logging.INFO)
+log.propagate = False
 
 # En producción no se publica la documentación interactiva (/docs, /redoc, /openapi.json): sería un mapa de la API.
 _docs = {} if not settings.es_produccion else {"docs_url": None, "redoc_url": None, "openapi_url": None}

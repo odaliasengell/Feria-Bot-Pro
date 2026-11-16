@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     mail_from_name: str = "FeriaBot Pro"
+    # Correo remitente. Vacío = el mismo SMTP_USER (Gmail). Con un relay como Brevo el usuario SMTP no es un
+    # correo real: aquí va el remitente verificado en ese servicio.
+    mail_from: str = ""
     codigo_minutos: int = 10
     # Diferencia con UTC de la hora local (Ecuador: -5, sin horario de verano). Las fechas se guardan en UTC;
     # las estadísticas agrupan por día y hora locales.
