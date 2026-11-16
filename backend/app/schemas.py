@@ -270,8 +270,10 @@ class FeriaOut(FeriaBase):
     recordatorio_enviado_en: Fecha | None = None
     total_empresas: int = 0
     total_visitantes: int = 0
-    # Llegó al aforo: no se aceptan más inscripciones (salvo las del organizador).
+    # Llegó al aforo o al límite del plan: no se aceptan más inscripciones de visitantes.
     llena: bool = False
+    # Visitantes por feria del plan del organizador: el aforo no puede pasarlo y sin aforo es el tope real.
+    limite_plan: int | None = None
     creado_en: Fecha
 
     # Al leer de la base no se vuelve a validar el orden de las fechas.

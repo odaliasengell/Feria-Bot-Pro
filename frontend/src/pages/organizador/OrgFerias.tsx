@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Building2, CalendarDays, Check, Copy, CopyPlus, ImagePlus, Link2, MapPin, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
 import type { Feria, NuevaFeria } from '../../types';
-import { feriasApi } from '../../services/api';
+import { feriasApi, miPlanApi } from '../../services/api';
+import { useAsync } from '../../lib/useAsync';
+import { cifra } from '../../lib/planes';
 import { useFeria } from '../../context/FeriaContext';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { hoyISO, portadaDesdeArchivo, rangoFechas } from '../../lib/utils';
@@ -38,8 +40,15 @@ export function estadoFeria(f: Feria): { label: string; tone: 'teal' | 'orange' 
   return { label: 'Inscripciones abiertas', tone: 'teal' };
 }
 
+/** Cupo real de la feria: el aforo si lo tiene; si no, el límite de visitantes del plan. */
+function cupoDe(f: Feria): number | null {
+  return f.aforo ?? f.limitePlan ?? null;
+}
+
 export default function OrgFerias() {
   const { ferias, feria: actual, cargando, elegir, recargar } = useFeria();
+  // Límite de visitantes por feria del plan, para el formulario de una feria nueva.
+  const { data: miPlan } = useAsync(() => miPlanApi.obtener(), []);
   const [editando, setEditando] = useState<Feria | 'nueva' | null>(null);
   const [enlace, setEnlace] = useState<Feria | null>(null);
   const [duplicando, setDuplicando] = useState<Feria | null>(null);
@@ -142,10 +151,10 @@ export default function OrgFerias() {
                   <div>
                     <b>
                       {f.totalVisitantes}
-                      {f.aforo !== null && <small className="muted"> / {f.aforo}</small>}
+                      {cupoDe(f) !== null && <small className="muted"> / {cifra(cupoDe(f)!)}</small>}
                     </b>
                     <span>
-                      <Users size={12} /> {f.aforo !== null ? 'inscritos / aforo' : 'inscritos'}
+                      <Users size={12} /> {f.aforo !== null ? 'inscritos / aforo' : cupoDe(f) !== null ? 'inscritos / plan' : 'inscritos'}
                     </span>
                   </div>
                 </div>
@@ -202,6 +211,7 @@ export default function OrgFerias() {
         {editando !== null && (
           <FormFeria
             inicial={editando === 'nueva' ? nuevaVacia() : editando}
+            limite={editando === 'nueva' ? miPlan?.plan.visitantesPorFeria ?? null : editando.limitePlan ?? null}
             onGuardar={async (datos) => {
               if (editando === 'nueva') {
                 const creada = await feriasApi.crear(datos);
@@ -242,7 +252,16 @@ export default function OrgFerias() {
   );
 }
 
-export function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuardar: (d: NuevaFeria) => Promise<void> }) {
+export function FormFeria({
+  inicial,
+  limite = null,
+  onGuardar,
+}: {
+  inicial: NuevaFeria;
+  /** Visitantes por feria del plan: tope del aforo. */
+  limite?: number | null;
+  onGuardar: (d: NuevaFeria) => Promise<void>;
+}) {
   const [f, setF] = useState<NuevaFeria>({
     nombre: inicial.nombre,
     descripcion: inicial.descripcion,
@@ -261,7 +280,12 @@ export function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuard
     nombre: errorNombre(f.nombre, { campo: 'El nombre de la feria' }),
     fechaInicio: f.fechaInicio ? null : 'Elige la fecha de inicio.',
     fechaFin: !f.fechaFin ? 'Elige la fecha de fin.' : f.fechaFin < f.fechaInicio ? 'La fecha de fin no puede ser anterior a la de inicio.' : null,
-    aforo: f.aforo !== null && (!Number.isInteger(f.aforo) || f.aforo < 1) ? 'El aforo debe ser un número entero mayor que 0.' : null,
+    aforo:
+      f.aforo !== null && (!Number.isInteger(f.aforo) || f.aforo < 1)
+        ? 'El aforo debe ser un número entero mayor que 0.'
+        : f.aforo !== null && limite !== null && f.aforo > limite
+          ? `Tu plan permite hasta ${cifra(limite)} visitantes por feria: el aforo no puede ser mayor.`
+          : null,
   });
 
   async function enviar(e: FormEvent) {
@@ -292,18 +316,27 @@ export function FormFeria({ inicial, onGuardar }: { inicial: NuevaFeria; onGuard
         <Field label="Lugar" hint="Los visitantes lo abren en Google Maps." opcional>
           <input className="input" value={f.lugar} onChange={set('lugar')} maxLength={255} placeholder="Ej. Centro de Convenciones, Quito" />
         </Field>
-        <Field label="Aforo" hint="Máximo de inscritos. Vacío = sin límite." error={v.error('aforo')} opcional>
+        <Field
+          label="Aforo"
+          hint={
+            limite !== null
+              ? `Máximo de inscritos, hasta ${cifra(limite)} (límite de tu plan). Vacío = ${cifra(limite)}.`
+              : 'Máximo de inscritos. Vacío = hasta el límite de tu plan.'
+          }
+          error={v.error('aforo')}
+          opcional
+        >
           <input
             onBlur={v.tocar('aforo')}
             aria-invalid={!!v.error('aforo')}
             className="input"
             type="number"
             min={1}
-            max={1000000}
+            max={limite ?? 1000000}
             step={1}
             value={f.aforo ?? ''}
             onChange={(e) => setF({ ...f, aforo: e.target.value === '' ? null : Math.max(1, Math.floor(Number(e.target.value))) })}
-            placeholder="Sin límite"
+            placeholder={limite !== null ? `Hasta ${cifra(limite)}` : 'Límite del plan'}
           />
         </Field>
         <Field label="Descripción" full hint="La ven los visitantes al elegir la feria." opcional>
@@ -494,7 +527,7 @@ function EnlaceRegistro({ feria }: { feria: Feria }) {
   return (
     <div className="credencial-wrap">
       {!feria.abierta && <Alert>Las inscripciones de esta feria están cerradas: el enlace no permitirá registrarse.</Alert>}
-      {feria.abierta && feria.llena && <Alert>La feria llegó a su aforo: el enlace no permitirá registrarse.</Alert>}
+      {feria.abierta && feria.llena && <Alert>La feria llegó a su cupo (aforo o límite del plan): el enlace no permitirá registrarse.</Alert>}
       <article className="cartel printable">
         <div className="cartel-head">
           <div>

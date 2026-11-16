@@ -155,6 +155,23 @@ def exigir_cupo_empresas(db: Session, feria: Feria) -> int:
     return libres
 
 
+def limite_visitantes(org: Organizador | None) -> int | None:
+    """Visitantes por feria que admite el plan del organizador (None si la feria no tiene organizador)."""
+    return plan_de(org).visitantes_por_feria if org is not None else None
+
+
+def exigir_aforo_del_plan(org: Organizador | None, aforo: int | None) -> None:
+    """422 si el aforo supera los visitantes por feria del plan: no se puede prometer más cupo del que el plan da.
+    Sin aforo (null) la feria admite hasta el límite del plan."""
+    limite = limite_visitantes(org)
+    if aforo is not None and limite is not None and aforo > limite:
+        plan = plan_de(org)
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Tu plan {plan.nombre} permite hasta {limite:,} visitantes por feria: el aforo no puede ser mayor.".replace(",", "."),
+        )
+
+
 def exigir_cupo_visitantes(db: Session, feria: Feria, *, es_organizador: bool) -> None:
     """Antes de inscribir a un visitante. El público ve un mensaje genérico; el organizador, el de su plan."""
     bloquear_feria(db, feria.id)

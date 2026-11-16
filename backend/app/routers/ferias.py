@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session, noload, selectinload
 from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
 from ..models import Empresa, Feria, Inscripcion, Lead, Organizador, Visitante, VistaFicha
-from ..planes import bloquear_feria, exigir_cupo_ferias, exigir_cupo_visitantes, exigir_operativo
+from ..planes import (
+    bloquear_feria,
+    exigir_aforo_del_plan,
+    exigir_cupo_ferias,
+    exigir_cupo_visitantes,
+    exigir_operativo,
+    limite_visitantes,
+)
 from ..schemas import (
     AsistenciaOut,
     AsistenciaRegistrar,
@@ -132,12 +139,23 @@ def _con_totales(db: Session, ferias: list[Feria]) -> list[FeriaOut]:
             select(Inscripcion.feria_id, func.count()).where(Inscripcion.feria_id.in_(ids)).group_by(Inscripcion.feria_id)
         ).all()
     )
+    limites: dict[str | None, int | None] = {}
+    for f in ferias:
+        if f.organizador_id not in limites:
+            limites[f.organizador_id] = limite_visitantes(f.organizador)
+
+    def tope(f: Feria) -> int | None:
+        """Cupo real de la feria: el menor entre el aforo y el límite del plan."""
+        valores = [x for x in (f.aforo, limites[f.organizador_id]) if x is not None]
+        return min(valores) if valores else None
+
     return [
         FeriaOut.model_validate(f).model_copy(
             update={
                 "total_empresas": emp.get(f.id, 0),
                 "total_visitantes": vis.get(f.id, 0),
-                "llena": f.aforo is not None and vis.get(f.id, 0) >= f.aforo,
+                "llena": (t := tope(f)) is not None and vis.get(f.id, 0) >= t,
+                "limite_plan": limites[f.organizador_id],
             }
         )
         for f in ferias
@@ -200,6 +218,7 @@ def crear(data: FeriaBase, db: DB, sesion: SesionOrganizador):
     else:
         # Una feria ya terminada (para cargar el historial) no ocupa cupo del plan.
         exigir_operativo(org)
+    exigir_aforo_del_plan(org, data.aforo)
     feria = Feria(**data.model_dump(), id=uid("feria-"), organizador_id=org.id)
     db.add(feria)
     db.commit()
@@ -217,6 +236,8 @@ def actualizar(feria_id: str, cambios: FeriaActualizar, db: DB, sesion: SesionGe
             setattr(feria, campo, valor)
     if feria.fecha_fin < feria.fecha_inicio:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "La fecha de fin no puede ser anterior a la de inicio")
+    if "aforo" in campos:
+        exigir_aforo_del_plan(feria.organizador, feria.aforo)
     if estaba_finalizada and feria.fecha_fin >= date.today():
         # Volver a abrir una feria terminada ocupa un cupo de ferias del plan.
         org = feria.organizador if sesion.role == "superadmin" else organizador_de(db, sesion)
@@ -250,7 +271,8 @@ def duplicar(feria_id: str, data: FeriaDuplicar, db: DB, sesion: SesionOrganizad
         lugar=origen.lugar,
         portada=origen.portada,
         portada_alt=origen.portada_alt,
-        aforo=origen.aforo,
+        # Si el plan bajó desde la edición anterior, el aforo copiado no puede pasarse del límite actual.
+        aforo=min(origen.aforo, limite_visitantes(org) or origen.aforo) if origen.aforo else None,
         fecha_inicio=data.fecha_inicio,
         fecha_fin=data.fecha_fin,
         inscripciones_abiertas=True,

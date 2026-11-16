@@ -188,6 +188,7 @@ export default function AdminFerias() {
         {editando && (
           <FormFeria
             inicial={editando}
+            limite={editando.limitePlan ?? null}
             onGuardar={async (datos) => {
               const { portada, ...resto } = datos;
               await feriasApi.actualizar(editando.id, portada === editando.portada ? resto : datos);

@@ -20,10 +20,12 @@ export interface Feria {
   /** Acepta inscripciones: interruptor encendido y la feria no terminó. */
   abierta: boolean;
   estado: EstadoFeria;
-  /** Máximo de inscritos; null = sin límite. */
+  /** Máximo de inscritos; null = hasta el límite del plan. */
   aforo: number | null;
-  /** Llegó al aforo: no acepta más inscripciones de visitantes (el organizador sí puede inscribir). */
+  /** Llegó al aforo o al límite del plan: no acepta más inscripciones de visitantes. */
   llena: boolean;
+  /** Visitantes por feria del plan del organizador: el aforo no puede pasarlo. */
+  limitePlan?: number | null;
   totalEmpresas: number;
   totalVisitantes: number;
   creadoEn: string;
