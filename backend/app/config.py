@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "mysql+pymysql://root:@localhost:3306/feriabot?charset=utf8mb4"
+    # Certificado CA (contenido PEM) para conectarse a MySQL con SSL, p. ej. Aiven. Vacío = sin SSL (XAMPP local).
+    db_ssl_ca: str = ""
 
     jwt_secret: str = "cambia-esta-clave"
     jwt_expire_minutes: int = 60 * 12
