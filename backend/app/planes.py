@@ -93,26 +93,43 @@ def exigir_operativo(org: Organizador | None) -> None:
 # ---------- Uso ----------
 
 
+# Los conteos que deciden un límite son lecturas con bloqueo (LOCK IN SHARE MODE): en MySQL (REPEATABLE READ) una
+# lectura normal ve la «foto» tomada al inicio de la petición y no lo que otra petición simultánea acaba de crear.
+
+
 def ferias_activas(db: Session, organizador_id: str, excepto: str | None = None) -> int:
     q = select(func.count()).select_from(Feria).where(Feria.organizador_id == organizador_id, Feria.fecha_fin >= date.today())
     if excepto:
         q = q.where(Feria.id != excepto)
-    return db.scalar(q) or 0
+    return db.scalar(q.with_for_update(read=True)) or 0
 
 
 def empresas_en(db: Session, feria_id: str) -> int:
-    return db.scalar(select(func.count()).select_from(Empresa).where(Empresa.feria_id == feria_id)) or 0
+    return db.scalar(select(func.count()).select_from(Empresa).where(Empresa.feria_id == feria_id).with_for_update(read=True)) or 0
 
 
 def inscritos_en(db: Session, feria_id: str) -> int:
-    return db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.feria_id == feria_id)) or 0
+    return db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.feria_id == feria_id).with_for_update(read=True)) or 0
 
 
 # ---------- Comprobaciones al crear ----------
 
 
+def bloquear_organizador(db: Session, organizador_id: str) -> None:
+    """SELECT … FOR UPDATE sobre el organizador: si llegan varias peticiones a la vez (p. ej. 8 «crear feria»
+    simultáneas), la segunda espera a que la primera termine y ya cuenta lo que esta creó. Sin esto, todas contaban
+    «0 de 2» y todas pasaban el límite del plan. El bloqueo dura hasta el commit de la petición."""
+    db.execute(select(Organizador.id).where(Organizador.id == organizador_id).with_for_update())
+
+
+def bloquear_feria(db: Session, feria_id: str) -> None:
+    """Igual que `bloquear_organizador`, para los límites por feria (empresas, visitantes y aforo)."""
+    db.execute(select(Feria.id).where(Feria.id == feria_id).with_for_update())
+
+
 def exigir_cupo_ferias(db: Session, org: Organizador, excepto: str | None = None) -> None:
     """Antes de crear (o reactivar) una feria: el plan admite N ferias no finalizadas a la vez."""
+    bloquear_organizador(db, org.id)
     exigir_operativo(org)
     plan = plan_de(org)
     if ferias_activas(db, org.id, excepto) >= plan.ferias:
@@ -125,6 +142,7 @@ def exigir_cupo_ferias(db: Session, org: Organizador, excepto: str | None = None
 
 def exigir_cupo_empresas(db: Session, feria: Feria) -> int:
     """Antes de agregar empresas a la feria. Devuelve cuántas caben todavía."""
+    bloquear_feria(db, feria.id)
     org = feria.organizador
     exigir_operativo(org)
     plan = plan_de(org)
@@ -139,6 +157,7 @@ def exigir_cupo_empresas(db: Session, feria: Feria) -> int:
 
 def exigir_cupo_visitantes(db: Session, feria: Feria, *, es_organizador: bool) -> None:
     """Antes de inscribir a un visitante. El público ve un mensaje genérico; el organizador, el de su plan."""
+    bloquear_feria(db, feria.id)
     org = feria.organizador
     if org is None or not puede_operar(org):
         if es_organizador:

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, noload, selectinload
 from ..correo import enviar_bienvenida_visitante, enviar_sin_fallar, rango_fechas
 from ..database import DB
 from ..models import Empresa, Feria, Inscripcion, Lead, Organizador, Visitante, VistaFicha
-from ..planes import exigir_cupo_ferias, exigir_cupo_visitantes, exigir_operativo
+from ..planes import bloquear_feria, exigir_cupo_ferias, exigir_cupo_visitantes, exigir_operativo
 from ..schemas import (
     AsistenciaOut,
     AsistenciaRegistrar,
@@ -78,7 +78,8 @@ FERIA_LLENA = "La feria está llena"
 
 
 def total_inscritos(db: Session, feria_id: str) -> int:
-    return db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.feria_id == feria_id)) or 0
+    # Lectura con bloqueo: ve las inscripciones que otras peticiones simultáneas acaban de confirmar (aforo).
+    return db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.feria_id == feria_id).with_for_update(read=True)) or 0
 
 
 def exigir_cupo(db: Session, feria: Feria) -> None:
@@ -97,6 +98,8 @@ def inscribir(db: Session, feria: Feria, visitante_id: str, *, forzar: bool = Fa
     )
     if actual:
         return actual
+    # Bloquea la feria antes de contar inscritos (aforo y plan): evita pasarse con inscripciones simultáneas.
+    bloquear_feria(db, feria.id)
     if not forzar and not feria.abierta:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Las inscripciones para «{feria.nombre}» están cerradas.")
     if not forzar:

@@ -23,7 +23,7 @@ from ..schemas import (
 from ..security import requiere, sesion_opcional, solo_propio
 from ..utils import ahora, generar_codigo, leer_codigo_visitante, uid
 from ..verificacion import crear_y_enviar, verificar
-from ..planes import exigir_cupo_visitantes
+from ..planes import bloquear_feria, exigir_cupo_visitantes
 from ..registros import registrar_aceptacion, registrar_actividad
 from .ferias import avisar_inscripcion, esta_inscrito, exigir_cupo, exigir_inscripcion, feria_de, ids_ferias_de, inscribir
 
@@ -261,7 +261,8 @@ def crear(
     if not es_org and not feria.abierta:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Las inscripciones para «{feria.nombre}» están cerradas.")
     if not es_org:
-        # Antes de crear la cuenta y de gastar el código de verificación.
+        # Antes de crear la cuenta y de gastar el código de verificación (con la feria bloqueada: ver bloquear_feria).
+        bloquear_feria(db, feria.id)
         exigir_cupo(db, feria)
         exigir_cupo_visitantes(db, feria, es_organizador=False)
 
