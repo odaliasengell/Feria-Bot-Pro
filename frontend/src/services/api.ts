@@ -358,7 +358,7 @@ export interface FiltroLeads {
   estado?: EstadoLead | '';
 }
 
-/** Junta todas las páginas (para exportar a CSV lo que coincide con la búsqueda). */
+/** Junta todas las páginas (para exportar a Excel lo que coincide con la búsqueda). */
 export async function todasLasPaginas<T>(cargar: (pagina: number) => Promise<{ items: T[]; total: number }>): Promise<T[]> {
   const primera = await cargar(1);
   const items = [...primera.items];

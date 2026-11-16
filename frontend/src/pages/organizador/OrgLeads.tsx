@@ -16,8 +16,7 @@ function LeadsFeria({ feria }: { feria: Feria }) {
       <LeadsTabla
         alcance={{ feriaId: feria.id }}
         mostrarEmpresa
-        archivo={`leads-${feria.nombre}.csv`}
-        excel={{ feriaId: feria.id }}
+        archivo={`leads-${feria.nombre}`}
         encabezado={(d) => (
           <div className="card card-slim">
             <DistribucionCalificaciones conteo={d.porCalificacion} />

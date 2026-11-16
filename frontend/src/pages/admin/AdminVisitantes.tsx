@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Download, Eye, Search, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Eye, FileSpreadsheet, Search, ShieldCheck, Trash2, Users } from 'lucide-react';
 import type { VisitanteAdminFila } from '../../types';
 import { adminApi, todasLasPaginas, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { mensajeError, useToast } from '../../context/ToastContext';
 import { useConfirmar } from '../../context/ConfirmarContext';
 import { ESTADO_FERIA } from '../../lib/ferias';
-import { descargarCSV, fecha, fechaHora, rangoFechas } from '../../lib/utils';
+import { fecha, fechaHora, rangoFechas } from '../../lib/utils';
+import { descargarExcel } from '../../lib/excel';
 import { useDebounce, usePaginado } from '../../lib/usePaginado';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
 import Paginacion from '../../components/Paginacion';
@@ -55,13 +56,13 @@ export default function AdminVisitantes() {
     setExportando(true);
     try {
       const todos = await todasLasPaginas((p) => adminApi.visitantes({ q: busqueda, pagina: p, porPagina: 100 }));
-      descargarCSV('visitantes-feriabot.csv', [
+      descargarExcel('visitantes-feriabot', [
         ['Código', 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Ferias', 'Registro', 'Política aceptada', 'Versión'],
         ...todos.map((v) => [
           v.codigo, v.nombre, v.email, v.telefono, v.empresa, v.ciudad, String(v.ferias), fecha(v.creadoEn),
           v.politicaAceptadaEn ? fechaHora(v.politicaAceptadaEn) : '', v.politicaVersion ?? '',
         ]),
-      ]);
+      ], { hoja: 'Visitantes' });
     } catch (err) {
       toast.error(mensajeError(err, 'No se pudo exportar.'));
     } finally {
@@ -91,7 +92,7 @@ export default function AdminVisitantes() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, código, correo, teléfono, ciudad…" aria-label="Buscar visitantes" />
             </div>
             <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || exportando}>
-              <Download size={15} /> {exportando ? 'Exportando…' : 'CSV'}
+              <FileSpreadsheet size={15} /> {exportando ? 'Exportando…' : 'Excel'}
             </button>
           </div>
           {!data?.items.length ? (

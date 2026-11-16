@@ -25,8 +25,7 @@ export default function EmpresaLeads() {
       />
       <LeadsTabla
         alcance={{ empresaId }}
-        archivo={`leads-${session?.nombre ?? 'empresa'}.csv`}
-        excel={{ empresaId }}
+        archivo={`leads-${session?.nombre ?? 'empresa'}`}
         encabezado={(d) => (
           <div className="stats-grid">
             <StatCard label="Leads totales" value={d.totalSinFiltros} icon={<ContactRound />} tone="navy" />

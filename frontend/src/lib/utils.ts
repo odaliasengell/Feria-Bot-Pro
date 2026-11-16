@@ -121,19 +121,6 @@ export function normalizar(s: string): string {
 
 /* ---------- Archivos ---------- */
 
-export function descargarCSV(nombreArchivo: string, filas: (string | number)[][]): void {
-  const csv = filas
-    .map((f) => f.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombreArchivo;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /** Reduce una imagen a `max` px de lado para no llenar el almacenamiento. */
 /**
  * Portada de feria: recorta la imagen al centro en 16:9 y la deja en 1200×675 JPEG (unos 150–300 KB),

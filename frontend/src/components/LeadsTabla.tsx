@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Download, FileSpreadsheet, Mail, Phone, Search, Inbox } from 'lucide-react';
+import { FileSpreadsheet, Mail, Phone, Search, Inbox } from 'lucide-react';
 import type { Calificacion, EstadoLead, LeadDetalle, PaginaLeads } from '../types';
 import { leadsApi, todasLasPaginas } from '../services/api';
 import { useAsync } from '../lib/useAsync';
 import { useToast } from '../context/ToastContext';
 import { useDebounce, usePaginado } from '../lib/usePaginado';
-import { CALIFICACIONES, CALIFICACION_ORDEN, ESTADOS_LEAD, ESTADO_LEAD_ORDEN, descargarCSV, fechaHora } from '../lib/utils';
+import { CALIFICACIONES, CALIFICACION_ORDEN, ESTADOS_LEAD, ESTADO_LEAD_ORDEN, fechaHora } from '../lib/utils';
+import { descargarExcel } from '../lib/excel';
 import { Alert, Avatar, CalificacionBadge, EmptyState, Loader } from './ui';
 import Paginacion from './Paginacion';
 
@@ -16,14 +17,12 @@ interface Props {
   mostrarEmpresa?: boolean;
   archivo: string;
   onSelect?: (lead: LeadDetalle) => void;
-  /** Filtro que se envía a GET /leads/exportar para el botón Excel. */
-  excel?: { feriaId?: string; empresaId?: string };
   /** Contenido sobre la tabla con las cifras de todo el alcance (tarjetas, barra de interés…). */
   encabezado?: (datos: PaginaLeads) => ReactNode;
 }
 
 /** Leads paginados en el servidor: la búsqueda y los filtros también se resuelven allá. */
-export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect, excel, encabezado }: Props) {
+export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect, encabezado }: Props) {
   const [q, setQ] = useState('');
   const [cal, setCal] = useState<Calificacion | ''>('');
   const [estado, setEstado] = useState<EstadoLead | ''>('');
@@ -38,7 +37,7 @@ export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect,
   /** Estados cambiados en esta pantalla (se muestran al instante). */
   const [cambios, setCambios] = useState<Record<string, EstadoLead>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
-  const [descargando, setDescargando] = useState<'' | 'csv' | 'excel'>('');
+  const [descargando, setDescargando] = useState<'' | 'excel'>('');
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
@@ -64,43 +63,36 @@ export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect,
     }
   }
 
-  async function exportarExcel() {
+  /** Excel con todo lo que coincide con la búsqueda y los filtros (todas las páginas). */
+  async function exportar() {
     setDescargando('excel');
     setError(null);
     try {
-      await leadsApi.exportarExcel(excel);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo descargar el Excel');
-    } finally {
-      setDescargando('');
-    }
-  }
-
-  /** CSV con todo lo que coincide con la búsqueda y los filtros (todas las páginas). */
-  async function exportar() {
-    setDescargando('csv');
-    setError(null);
-    try {
       const todos = await todasLasPaginas((p) => leadsApi.pagina({ ...filtro, pagina: p, porPagina: 100 }));
-      descargarCSV(archivo, [
-        [...(mostrarEmpresa ? ['Empresa expositora'] : []), 'Nombre', 'Correo', 'Teléfono', 'Empresa', 'Ciudad', 'Calificación', 'Estado', 'Nota', 'Registrado por', 'Fecha'],
-        ...todos.map((l) => {
-          const est = cambios[l.id] ?? l.estado;
-          return [
-            ...(mostrarEmpresa ? [l.empresa?.nombre ?? ''] : []),
-            l.visitante?.nombre ?? '',
-            l.visitante?.email ?? '',
-            l.visitante?.telefono ?? '',
-            l.visitante?.empresa ?? '',
-            l.visitante?.ciudad ?? '',
-            CALIFICACIONES[l.calificacion].label,
-            ESTADOS_LEAD[est]?.label ?? est,
-            l.nota,
-            l.registradoPor ?? '',
-            fechaHora(l.actualizadoEn),
-          ];
-        }),
-      ]);
+      descargarExcel(
+        archivo,
+        [
+          ['Fecha', ...(mostrarEmpresa ? ['Empresa expositora', 'Stand'] : []), 'Visitante', 'Código', 'Correo', 'Teléfono', 'Empresa del visitante', 'Ciudad', 'Calificación', 'Estado', 'Nota', 'Registrado por'],
+          ...todos.map((l) => {
+            const est = cambios[l.id] ?? l.estado;
+            return [
+              fechaHora(l.creadoEn),
+              ...(mostrarEmpresa ? [l.empresa?.nombre ?? '', l.empresa?.stand ?? ''] : []),
+              l.visitante?.nombre ?? 'Visitante eliminado',
+              l.visitante?.codigo ?? '',
+              l.visitante?.email ?? '',
+              l.visitante?.telefono ?? '',
+              l.visitante?.empresa ?? '',
+              l.visitante?.ciudad ?? '',
+              CALIFICACIONES[l.calificacion].label,
+              ESTADOS_LEAD[est]?.label ?? est,
+              l.nota,
+              l.registradoPor ?? '',
+            ];
+          }),
+        ],
+        { hoja: 'Leads', ajustar: [mostrarEmpresa ? 11 : 9] },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo exportar');
     } finally {
@@ -158,14 +150,9 @@ export default function LeadsTabla({ alcance, mostrarEmpresa, archivo, onSelect,
               </option>
             ))}
           </select>
-          <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || descargando !== ''}>
-            <Download size={15} /> {descargando === 'csv' ? 'Exportando…' : 'CSV'}
+          <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || descargando !== ''} title="Descarga en Excel lo que ves con la búsqueda y los filtros">
+            <FileSpreadsheet size={15} /> {descargando === 'excel' ? 'Exportando…' : 'Excel'}
           </button>
-          {excel && (
-            <button className="btn btn-outline btn-sm" onClick={exportarExcel} disabled={descargando !== '' || !hayLeads}>
-              <FileSpreadsheet size={15} /> {descargando === 'excel' ? 'Descargando…' : 'Excel'}
-            </button>
-          )}
         </div>
         {error && (
           <div className="table-alert">

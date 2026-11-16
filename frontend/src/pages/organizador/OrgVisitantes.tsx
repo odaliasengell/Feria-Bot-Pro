@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Check, Download, IdCard, Mail, Phone, Plus, Search, Trash2, Users } from 'lucide-react';
+import { Check, FileSpreadsheet, IdCard, Mail, Phone, Plus, Search, Trash2, Users } from 'lucide-react';
 import type { Feria, Visitante } from '../../types';
 import { inscripcionesApi, todasLasPaginas, visitantesApi } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
-import { descargarCSV, fecha, fechaHora } from '../../lib/utils';
+import { fecha, fechaHora } from '../../lib/utils';
+import { descargarExcel } from '../../lib/excel';
 import { useDebounce, usePaginado } from '../../lib/usePaginado';
 import Paginacion from '../../components/Paginacion';
 import { Alert, Avatar, EmptyState, Loader, Modal, PageHeader } from '../../components/ui';
@@ -70,7 +71,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
     setExportando(true);
     try {
       const todos = await todasLasPaginas((p) => visitantesApi.pagina(feria.id, { ...filtro, pagina: p, porPagina: 100 }));
-      descargarCSV(`visitantes-${feria.nombre}.csv`, [
+      descargarExcel(`visitantes-${feria.nombre}`, [
         ['Código', 'Nombre', 'Teléfono', 'Correo', 'Empresa', 'Ciudad', 'Registro', 'Asistió', 'Empresas que lo registraron'],
         ...todos.map((v) => [
           v.codigo,
@@ -83,7 +84,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
           v.asistioEn ? fechaHora(v.asistioEn) : 'No',
           String(v.leads),
         ]),
-      ]);
+      ], { hoja: 'Visitantes' });
     } catch (err) {
       toast.error(mensajeError(err, 'No se pudo exportar.'));
     } finally {
@@ -125,7 +126,7 @@ function VisitantesFeria({ feria }: { feria: Feria }) {
               <button className={asistio === 'no' ? 'active' : ''} onClick={() => setAsistio('no')}>Sin entrada</button>
             </div>
             <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || exportando}>
-              <Download size={15} /> {exportando ? 'Exportando…' : 'CSV'}
+              <FileSpreadsheet size={15} /> {exportando ? 'Exportando…' : 'Excel'}
             </button>
           </div>
           {filas.length === 0 ? (

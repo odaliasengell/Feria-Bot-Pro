@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Activity, Download, Search, ShieldCheck } from 'lucide-react';
+import { Activity, FileSpreadsheet, Search, ShieldCheck } from 'lucide-react';
 import { adminApi, todasLasPaginas } from '../../services/api';
 import { useAsync } from '../../lib/useAsync';
 import { mensajeError, useToast } from '../../context/ToastContext';
-import { descargarCSV, fechaHora } from '../../lib/utils';
+import { fechaHora } from '../../lib/utils';
+import { descargarExcel } from '../../lib/excel';
 import { useDebounce, usePaginado } from '../../lib/usePaginado';
 import { Alert, EmptyState, Loader, PageHeader } from '../../components/ui';
 import Paginacion from '../../components/Paginacion';
@@ -123,13 +124,13 @@ function TablaAceptaciones() {
     setExportando(true);
     try {
       const todas = await todasLasPaginas((p) => adminApi.aceptaciones({ q: busqueda, origen: origen || undefined, pagina: p, porPagina: 100 }));
-      descargarCSV('aceptaciones-politica.csv', [
+      descargarExcel('aceptaciones-politica', [
         ['Fecha', 'Nombre', 'Correo', 'Tipo', 'Versión', 'Origen', 'Marcada por', 'IP', 'Navegador'],
         ...todas.map((a) => [
           fechaHora(a.creadoEn), a.nombre, a.email, a.tipo === 'visitante' ? 'Visitante' : 'Contratación de plan', a.version,
           ORIGEN_ACEPTACION[a.origen] ?? a.origen, a.registradoPor, a.ip, a.userAgent,
         ]),
-      ]);
+      ], { hoja: 'Aceptaciones', anchos: [18, 28, 30, 20, 10, 32, 22, 16, 40] });
     } catch (err) {
       toast.error(mensajeError(err, 'No se pudo exportar.'));
     } finally {
@@ -155,7 +156,7 @@ function TablaAceptaciones() {
           ))}
         </select>
         <button className="btn btn-outline btn-sm" onClick={exportar} disabled={!data?.total || exportando}>
-          <Download size={15} /> {exportando ? 'Exportando…' : 'CSV'}
+          <FileSpreadsheet size={15} /> {exportando ? 'Exportando…' : 'Excel'}
         </button>
       </div>
       {!data?.items.length ? (
