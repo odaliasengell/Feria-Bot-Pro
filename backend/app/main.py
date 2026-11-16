@@ -37,7 +37,9 @@ async def lifespan(_: FastAPI):
 
 log = logging.getLogger("feriabot")
 
-app = FastAPI(title="FeriaBot Pro API", version="0.1.0", lifespan=lifespan)
+# En producción no se publica la documentación interactiva (/docs, /redoc, /openapi.json): sería un mapa de la API.
+_docs = {} if not settings.es_produccion else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+app = FastAPI(title="FeriaBot Pro API", version="0.1.0", lifespan=lifespan, **_docs)
 
 app.add_middleware(
     CORSMiddleware,
